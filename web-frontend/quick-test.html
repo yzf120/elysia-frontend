@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>快速测试 - Elysia</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 30px;
+      text-align: center;
+      color: white;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    
+    .content {
+      padding: 40px 30px;
+    }
+    
+    .role-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    
+    .role-btn {
+      padding: 30px 20px;
+      border: 3px solid #e0e0e0;
+      background: white;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+    }
+    
+    .role-btn:hover {
+      border-color: #667eea;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+    }
+    
+    .role-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    
+    .role-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .role-desc {
+      font-size: 12px;
+      color: #999;
+      margin-top: 8px;
+    }
+    
+    .test-info {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .test-info h3 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    
+    .test-info ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    
+    .test-info li {
+      padding: 5px 0;
+      color: #666;
+    }
+    
+    .test-info li::before {
+      content: '✓ ';
+      color: #4caf50;
+      font-weight: bold;
+    }
+    
+    @media (max-width: 768px) {
+      .role-selector {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎓 Elysia 教育平台</h1>
+      <p>请选择您的身份</p>
+    </div>
+    
+    <div class="content">
+      <div class="role-selector">
+        <button class="role-btn" onclick="selectRole('admin')">
+          <div class="role-icon">👨‍💼</div>
+          <div class="role-name">管理员</div>
+          <div class="role-desc">Admin</div>
+        </button>
+        
+        <button class="role-btn" onclick="selectRole('teacher')">
+          <div class="role-icon">👨‍🏫</div>
+          <div class="role-name">教师</div>
+          <div class="role-desc">Teacher</div>
+        </button>
+        
+        <button class="role-btn" onclick="selectRole('student')">
+          <div class="role-icon">👨‍🎓</div>
+          <div class="role-name">学生</div>
+          <div class="role-desc">Student</div>
+        </button>
+      </div>
+      
+      <div class="test-info">
+        <h3>✅ 测试通过项</h3>
+        <ul>
+          <li>页面正常显示</li>
+          <li>样式加载成功</li>
+          <li>按钮可以点击</li>
+          <li>响应式布局正常</li>
+        </ul>
+        
+        <p style="margin-top: 15px; color: #999; font-size: 14px;">
+          如果你能看到这个页面并且按钮可以点击，说明基本功能正常。<br>
+          点击按钮将跳转到实际的登录页面。
+        </p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    function selectRole(role) {
+      console.log('选择角色:', role);
+      alert('选择了: ' + role + '\n\n将跳转到 index.html?role=' + role);
+      window.location.href = '/index.html?role=' + role;
+    }
+    
+    console.log('快速测试页面加载成功');
+    console.log('DOM 元素:', document.querySelector('.container'));
+  </script>
+</body>
+</html>
