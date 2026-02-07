@@ -40,8 +40,13 @@ const userInfo = ref({})
 
 onMounted(() => {
   const info = localStorage.getItem('userInfo')
-  if (info) {
-    userInfo.value = JSON.parse(info)
+  if (info && info !== 'undefined' && info !== 'null') {
+    try {
+      userInfo.value = JSON.parse(info)
+    } catch (error) {
+      console.error('解析用户信息失败:', error)
+      userInfo.value = {}
+    }
   }
 })
 

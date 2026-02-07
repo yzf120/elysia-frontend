@@ -37,5 +37,8 @@ echo "🎯 启动开发服务器..."
 echo "   访问地址：http://localhost:3001"
 echo "   按 Ctrl+C 停止服务"
 echo ""
+echo "⚠️  如果直接跳转到管理员面板，请清除浏览器缓存："
+echo "   在浏览器控制台执行: localStorage.clear(); location.reload();"
+echo ""
 
 npm run dev

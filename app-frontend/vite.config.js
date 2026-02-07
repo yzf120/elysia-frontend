@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     port: 3001,
     host: '0.0.0.0',
+    open: true, // 自动打开浏览器
     proxy: {
       '/api': {
         target: 'http://localhost:8001',
