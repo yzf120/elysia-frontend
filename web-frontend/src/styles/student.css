@@ -1,0 +1,226 @@
+/* 学生端全局样式 */
+
+/* 清新浅蓝主色调 */
+:root {
+  --student-primary: #409eff;
+  --student-primary-light: #e3f2fd;
+  --student-success: #67c23a;
+  --student-warning: #e6a23c;
+  --student-danger: #f56c6c;
+  --student-info: #909399;
+  
+  --student-bg: #f5f5f5;
+  --student-card-bg: #ffffff;
+  --student-text-primary: #303133;
+  --student-text-regular: #606266;
+  --student-text-secondary: #909399;
+  
+  --student-border: #e4e7ed;
+  --student-border-light: #ebeef5;
+}
+
+/* 学生端页面通用样式 */
+.student-page {
+  min-height: 100vh;
+  background: var(--student-bg);
+  padding: 20px;
+}
+
+/* 顶部导航栏样式 */
+.student-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--student-card-bg);
+  padding: 15px 25px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+}
+
+/* 卡片样式 */
+.student-card {
+  background: var(--student-card-bg);
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s;
+}
+
+.student-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* 渐变背景样式 */
+.student-gradient-bg {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.student-gradient-primary {
+  background: linear-gradient(135deg, #409eff 0%, #3a8ee6 100%);
+}
+
+.student-gradient-success {
+  background: linear-gradient(135deg, #67c23a 0%, #5daf34 100%);
+}
+
+.student-gradient-warning {
+  background: linear-gradient(135deg, #e6a23c 0%, #cf9236 100%);
+}
+
+/* 按钮样式增强 */
+.student-btn-primary {
+  background: linear-gradient(135deg, #409eff 0%, #3a8ee6 100%);
+  border: none;
+  color: white;
+  transition: all 0.3s;
+}
+
+.student-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+}
+
+/* 空状态样式 */
+.student-empty-state {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--student-text-secondary);
+}
+
+/* 加载动画 */
+.student-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+/* 标签样式 */
+.student-tag {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 分页样式 */
+.student-pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 响应式布局 */
+@media (max-width: 1366px) {
+  .student-page {
+    padding: 15px;
+  }
+  
+  .student-card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .student-page {
+    padding: 10px;
+  }
+  
+  .student-top-bar {
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px;
+  }
+  
+  .student-card {
+    padding: 15px;
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.student-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.student-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* 卡片hover效果 */
+.student-card-hover {
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.student-card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* 文本样式 */
+.student-text-primary {
+  color: var(--student-text-primary);
+}
+
+.student-text-regular {
+  color: var(--student-text-regular);
+}
+
+.student-text-secondary {
+  color: var(--student-text-secondary);
+}
+
+/* 间距工具类 */
+.student-mt-10 { margin-top: 10px; }
+.student-mt-20 { margin-top: 20px; }
+.student-mt-30 { margin-top: 30px; }
+
+.student-mb-10 { margin-bottom: 10px; }
+.student-mb-20 { margin-bottom: 20px; }
+.student-mb-30 { margin-bottom: 30px; }
+
+.student-p-10 { padding: 10px; }
+.student-p-20 { padding: 20px; }
+.student-p-30 { padding: 30px; }

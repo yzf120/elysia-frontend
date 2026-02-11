@@ -1,0 +1,447 @@
+/* 教师端专用样式 */
+
+/* 教师端配色变量 */
+:root {
+  --teacher-primary: #1e3a8a; /* 深蓝色 */
+  --teacher-primary-light: #3b82f6; /* 浅蓝色 */
+  --teacher-secondary: #64748b; /* 灰蓝色 */
+  --teacher-success: #10b981; /* 绿色 */
+  --teacher-warning: #f59e0b; /* 橙色 */
+  --teacher-danger: #ef4444; /* 红色 */
+  --teacher-bg: #f8fafc; /* 浅灰背景 */
+  --teacher-card-bg: #ffffff; /* 卡片背景 */
+  --teacher-border: #e2e8f0; /* 边框颜色 */
+  --teacher-text-primary: #1e293b; /* 主文本 */
+  --teacher-text-secondary: #64748b; /* 次要文本 */
+}
+
+/* 教师端通用容器 */
+.teacher-page {
+  min-height: 100vh;
+  background: var(--teacher-bg);
+  padding: 20px;
+}
+
+/* 顶部导航栏 */
+.teacher-top-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--teacher-card-bg);
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08);
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.teacher-top-nav:hover {
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12);
+}
+
+.teacher-top-nav .nav-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.teacher-top-nav .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 面包屑导航 */
+.teacher-breadcrumb {
+  font-size: 14px;
+  color: var(--teacher-text-secondary);
+}
+
+.teacher-breadcrumb .el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--teacher-primary);
+  font-weight: 600;
+}
+
+/* 欢迎区域 */
+.teacher-welcome {
+  background: linear-gradient(135deg, var(--teacher-primary) 0%, var(--teacher-primary-light) 100%);
+  color: white;
+  padding: 32px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(30, 58, 138, 0.3);
+}
+
+.teacher-welcome h2 {
+  margin: 0 0 8px 0;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.teacher-welcome p {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.95;
+}
+
+/* 主内容卡片 */
+.teacher-card {
+  background: var(--teacher-card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08);
+  transition: all 0.3s ease;
+}
+
+.teacher-card:hover {
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12);
+}
+
+.teacher-card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--teacher-text-primary);
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--teacher-border);
+}
+
+/* 快捷入口卡片 */
+.teacher-quick-access {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.teacher-access-card {
+  background: var(--teacher-card-bg);
+  border: 2px solid var(--teacher-border);
+  border-radius: 12px;
+  padding: 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.teacher-access-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--teacher-primary);
+  box-shadow: 0 8px 20px rgba(30, 58, 138, 0.15);
+}
+
+.teacher-access-card .card-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: white;
+  font-size: 28px;
+}
+
+.teacher-access-card .card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--teacher-text-primary);
+  margin-bottom: 8px;
+}
+
+.teacher-access-card .card-desc {
+  font-size: 13px;
+  color: var(--teacher-text-secondary);
+}
+
+/* 表格样式 */
+.teacher-table {
+  width: 100%;
+}
+
+.teacher-table .el-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.teacher-table .el-table th {
+  background: var(--teacher-bg);
+  color: var(--teacher-text-primary);
+  font-weight: 600;
+}
+
+.teacher-table .el-table tr:hover {
+  background: rgba(30, 58, 138, 0.02);
+}
+
+/* 按钮样式 */
+.teacher-btn-primary {
+  background: linear-gradient(135deg, var(--teacher-primary) 0%, var(--teacher-primary-light) 100%);
+  border: none;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.teacher-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
+
+.teacher-btn-success {
+  background: var(--teacher-success);
+  border: none;
+  color: white;
+}
+
+.teacher-btn-success:hover {
+  background: #059669;
+  transform: translateY(-2px);
+}
+
+.teacher-btn-warning {
+  background: var(--teacher-warning);
+  border: none;
+  color: white;
+}
+
+.teacher-btn-warning:hover {
+  background: #d97706;
+  transform: translateY(-2px);
+}
+
+.teacher-btn-danger {
+  background: var(--teacher-danger);
+  border: none;
+  color: white;
+}
+
+.teacher-btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+}
+
+/* 标签样式 */
+.teacher-tag {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.teacher-tag-primary {
+  background: rgba(30, 58, 138, 0.1);
+  color: var(--teacher-primary);
+}
+
+.teacher-tag-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--teacher-success);
+}
+
+.teacher-tag-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--teacher-warning);
+}
+
+.teacher-tag-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--teacher-danger);
+}
+
+/* 空状态 */
+.teacher-empty {
+  padding: 60px 0;
+  text-align: center;
+}
+
+.teacher-empty .el-icon {
+  font-size: 80px;
+  color: var(--teacher-border);
+  margin-bottom: 16px;
+}
+
+.teacher-empty p {
+  font-size: 15px;
+  color: var(--teacher-text-secondary);
+}
+
+/* 分页 */
+.teacher-pagination {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.teacher-pagination .el-pagination {
+  --el-pagination-button-color: var(--teacher-primary);
+  --el-pagination-hover-color: var(--teacher-primary-light);
+}
+
+/* 表单样式 */
+.teacher-form {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.teacher-form .el-form-item__label {
+  color: var(--teacher-text-primary);
+  font-weight: 500;
+}
+
+.teacher-form .el-input__wrapper {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.teacher-form .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--teacher-primary-light);
+}
+
+.teacher-form .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--teacher-primary);
+}
+
+/* Tab样式 */
+.teacher-tabs .el-tabs__item {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--teacher-text-secondary);
+}
+
+.teacher-tabs .el-tabs__item.is-active {
+  color: var(--teacher-primary);
+}
+
+.teacher-tabs .el-tabs__active-bar {
+  background: var(--teacher-primary);
+}
+
+/* 对话框样式 */
+.teacher-dialog .el-dialog__header {
+  background: var(--teacher-bg);
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--teacher-border);
+}
+
+.teacher-dialog .el-dialog__title {
+  color: var(--teacher-text-primary);
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.teacher-dialog .el-dialog__body {
+  padding: 24px;
+}
+
+/* 加载状态 */
+.teacher-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--teacher-primary);
+}
+
+/* 统计卡片 */
+.teacher-stat-card {
+  background: var(--teacher-card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  border-left: 4px solid var(--teacher-primary);
+  transition: all 0.3s ease;
+}
+
+.teacher-stat-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12);
+}
+
+.teacher-stat-card .stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--teacher-primary);
+  margin-bottom: 8px;
+}
+
+.teacher-stat-card .stat-label {
+  font-size: 14px;
+  color: var(--teacher-text-secondary);
+}
+
+/* 响应式布局 */
+@media (max-width: 1366px) {
+  .teacher-quick-access {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .teacher-page {
+    padding: 12px;
+  }
+
+  .teacher-top-nav {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .teacher-welcome {
+    padding: 24px;
+  }
+
+  .teacher-welcome h2 {
+    font-size: 22px;
+  }
+
+  .teacher-card {
+    padding: 16px;
+  }
+
+  .teacher-quick-access {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .teacher-access-card {
+    padding: 20px;
+  }
+
+  .teacher-access-card .card-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+  }
+}
+
+/* 动画效果 */
+@keyframes teacher-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.teacher-fade-in {
+  animation: teacher-fade-in 0.4s ease-out;
+}
+
+/* 滚动条美化 */
+.teacher-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.teacher-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--teacher-primary);
+  border-radius: 4px;
+}
+
+.teacher-scrollbar::-webkit-scrollbar-track {
+  background: var(--teacher-bg);
+  border-radius: 4px;
+}

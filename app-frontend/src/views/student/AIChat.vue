@@ -1,0 +1,1280 @@
+<template>
+  <div class="ai-chat-page">
+    <!-- 顶部导航栏 - 渐变背景 -->
+    <van-nav-bar
+      title="AI智能助教"
+      left-arrow
+      @click-left="goBack"
+      fixed
+      placeholder
+      class="custom-navbar"
+    >
+      <template #right>
+        <div class="navbar-right">
+          <van-icon name="bars" size="22" @click="showSidebar = true" class="menu-icon" />
+        </div>
+      </template>
+    </van-nav-bar>
+
+    <!-- 左侧会话管理侧滑栏 - 优化设计 -->
+    <van-popup
+      v-model:show="showSidebar"
+      position="left"
+      :style="{ width: '85%', height: '100%' }"
+      :overlay-style="{ background: 'rgba(0, 0, 0, 0.5)' }"
+    >
+      <div class="sidebar-content">
+        <!-- 侧边栏头部 -->
+        <div class="sidebar-header">
+          <h3>会话历史</h3>
+          <van-icon name="cross" size="20" @click="showSidebar = false" class="close-icon" />
+        </div>
+
+        <!-- 新建会话按钮 - 渐变设计 -->
+        <van-button 
+          block 
+          round 
+          @click="createNewSession" 
+          class="new-session-btn"
+        >
+          <van-icon name="plus" />
+          <span>新建会话</span>
+        </van-button>
+
+        <!-- 搜索框 -->
+        <van-search
+          v-model="searchKeyword"
+          placeholder="搜索会话..."
+          shape="round"
+          background="transparent"
+          class="session-search"
+        />
+
+        <!-- 会话列表 -->
+        <div class="session-list">
+          <div
+            v-for="session in filteredSessions"
+            :key="session.id"
+            class="session-item"
+            :class="{ active: currentSessionId === session.id }"
+            @click="loadSession(session.id)"
+          >
+            <div class="session-icon">
+              <van-icon name="chat-o" size="20" />
+            </div>
+            <div class="session-info">
+              <div class="session-title">{{ session.title }}</div>
+              <div class="session-time">
+                <van-icon name="clock-o" size="12" />
+                {{ formatTime(session.updateTime) }}
+              </div>
+            </div>
+            <van-icon 
+              v-if="currentSessionId === session.id" 
+              name="success" 
+              size="18" 
+              color="#667eea" 
+            />
+          </div>
+          <van-empty 
+            v-if="filteredSessions.length === 0" 
+            description="暂无会话记录"
+            image-size="100"
+          />
+        </div>
+      </div>
+    </van-popup>
+
+    <!-- 主对话区 -->
+    <div class="chat-main">
+      <!-- 顶部功能区 - 优化设计 -->
+      <van-collapse v-model="activeCollapse" accordion class="model-settings">
+        <van-collapse-item name="1" class="settings-item">
+          <template #title>
+            <div class="settings-title">
+              <van-icon name="setting-o" size="18" />
+              <span>模型设置</span>
+            </div>
+          </template>
+          <van-cell-group inset class="settings-group">
+            <van-cell title="AI模型" class="setting-cell">
+              <template #icon>
+                <van-icon name="fire" color="#667eea" size="18" />
+              </template>
+              <template #right-icon>
+                <van-dropdown-menu>
+                  <van-dropdown-item v-model="selectedModel" :options="modelOptions" />
+                </van-dropdown-menu>
+              </template>
+            </van-cell>
+            <van-cell title="联网搜索" class="setting-cell">
+              <template #icon>
+                <van-icon name="search" color="#67c23a" size="18" />
+              </template>
+              <template #value>
+                <span class="setting-desc">获取实时信息</span>
+              </template>
+              <template #right-icon>
+                <van-switch v-model="enableWebSearch" size="22" active-color="#67c23a" />
+              </template>
+            </van-cell>
+            <van-cell title="深度思考" class="setting-cell">
+              <template #icon>
+                <van-icon name="bulb-o" color="#e6a23c" size="18" />
+              </template>
+              <template #value>
+                <span class="setting-desc">更详细的分析</span>
+              </template>
+              <template #right-icon>
+                <van-switch v-model="enableDeepThink" size="22" active-color="#e6a23c" />
+              </template>
+            </van-cell>
+          </van-cell-group>
+        </van-collapse-item>
+      </van-collapse>
+
+      <!-- 消息展示区 -->
+      <div class="message-area" ref="messageArea">
+        <!-- 欢迎语 - 优化设计 -->
+        <div v-if="messages.length === 0" class="welcome-message">
+          <div class="welcome-icon">
+            <van-icon name="chat-o" size="70" />
+          </div>
+          <h2 class="welcome-title">{{ greeting }}，{{ studentName }}</h2>
+          <p class="welcome-subtitle">我是您的AI智能助教</p>
+          <div class="welcome-tips">
+            <div class="tip-item">
+              <van-icon name="bulb-o" size="16" />
+              <span>解答学习疑问</span>
+            </div>
+            <div class="tip-item">
+              <van-icon name="edit" size="16" />
+              <span>辅导作业习题</span>
+            </div>
+            <div class="tip-item">
+              <van-icon name="chart-trending-o" size="16" />
+              <span>分析知识要点</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 消息列表 - 优化设计 -->
+        <div v-else class="message-list">
+          <div
+            v-for="(msg, index) in messages"
+            :key="index"
+            class="message-item"
+            :class="msg.role"
+          >
+            <div class="message-avatar">
+              <van-image
+                v-if="msg.role === 'user'"
+                round
+                width="40"
+                height="40"
+                :src="userAvatar"
+                class="avatar-image"
+              >
+                <template #default>
+                  <div class="avatar-placeholder user-avatar">{{ studentName.charAt(0) }}</div>
+                </template>
+              </van-image>
+              <div v-else class="ai-avatar">
+                <van-icon name="chat-o" size="24" />
+              </div>
+            </div>
+            <div class="message-content">
+              <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              <div class="message-time">
+                <van-icon name="clock-o" size="10" />
+                {{ formatTime(msg.time) }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 加载中提示 - 优化动画 -->
+          <div v-if="isLoading" class="message-item assistant loading-message">
+            <div class="message-avatar">
+              <div class="ai-avatar loading">
+                <van-icon name="chat-o" size="24" />
+              </div>
+            </div>
+            <div class="message-content">
+              <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部输入区 - 优化设计 -->
+      <div class="input-area">
+        <div class="input-container">
+          <van-field
+            v-model="inputMessage"
+            type="textarea"
+            rows="1"
+            autosize
+            placeholder="输入您的问题，AI助教随时为您解答..."
+            :disabled="isLoading"
+            class="message-input"
+          />
+          <div class="input-actions">
+            <van-uploader :after-read="handleFileUpload" :max-count="1" class="upload-btn">
+              <div class="action-icon">
+                <van-icon name="photograph" size="22" />
+              </div>
+            </van-uploader>
+            <van-button
+              round
+              :loading="isLoading"
+              :disabled="!inputMessage.trim()"
+              @click="sendMessage"
+              class="send-btn"
+              :class="{ active: inputMessage.trim() }"
+            >
+              <van-icon name="guide-o" size="18" v-if="!isLoading" />
+              <span v-if="!isLoading">发送</span>
+            </van-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧悬浮功能按钮 - 优化设计 -->
+    <div class="floating-menu" @click="showActionSheet = true">
+      <van-icon name="apps-o" size="24" />
+    </div>
+
+    <!-- 操作菜单 -->
+    <van-action-sheet
+      v-model:show="showActionSheet"
+      :actions="actions"
+      @select="onActionSelect"
+    />
+
+    <!-- 导出对话框 -->
+    <van-dialog
+      v-model:show="exportDialogVisible"
+      title="导出会话"
+      show-cancel-button
+      @confirm="exportSession"
+    >
+      <van-radio-group v-model="exportFormat">
+        <van-cell-group inset>
+          <van-cell title="Markdown格式" clickable @click="exportFormat = 'markdown'">
+            <template #right-icon>
+              <van-radio name="markdown" />
+            </template>
+          </van-cell>
+          <van-cell title="文本格式" clickable @click="exportFormat = 'text'">
+            <template #right-icon>
+              <van-radio name="text" />
+            </template>
+          </van-cell>
+        </van-cell-group>
+      </van-radio-group>
+    </van-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { showToast, showDialog } from 'vant'
+
+const router = useRouter()
+const route = useRoute()
+
+// 学生信息
+const studentName = ref(localStorage.getItem('userName') || '同学')
+const userAvatar = ref('')
+
+// 侧边栏
+const showSidebar = ref(false)
+const searchKeyword = ref('')
+const sessions = ref([])
+const currentSessionId = ref(null)
+
+// 功能折叠
+const activeCollapse = ref('')
+
+// 模型配置
+const selectedModel = ref('deepseek')
+const modelOptions = [
+  { text: 'DeepSeek', value: 'deepseek' },
+  { text: '豆包', value: 'doubao' },
+  { text: '通义千问', value: 'qwen' },
+  { text: 'Gemini 3', value: 'gemini3' }
+]
+const enableWebSearch = ref(false)
+const enableDeepThink = ref(false)
+
+// 消息相关
+const messages = ref([])
+const inputMessage = ref('')
+const isLoading = ref(false)
+const messageArea = ref(null)
+
+// 操作菜单
+const showActionSheet = ref(false)
+const actions = [
+  { name: '收藏会话', icon: 'star-o' },
+  { name: '导出会话', icon: 'down' },
+  { name: '生成标题', icon: 'edit' }
+]
+
+// 导出对话框
+const exportDialogVisible = ref(false)
+const exportFormat = ref('markdown')
+
+// 根据时间生成问候语
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 6) return '凌晨好'
+  if (hour < 12) return '上午好'
+  if (hour < 14) return '中午好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+})
+
+// 过滤会话列表
+const filteredSessions = computed(() => {
+  if (!searchKeyword.value) return sessions.value
+  return sessions.value.filter(s =>
+    s.title.toLowerCase().includes(searchKeyword.value.toLowerCase())
+  )
+})
+
+// 格式化时间
+const formatTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  const now = new Date()
+  const diff = now - date
+
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`
+
+  return `${date.getMonth() + 1}-${date.getDate()}`
+}
+
+// 格式化消息内容（支持Markdown）
+const formatMessage = (content) => {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br>')
+}
+
+// 创建新会话
+const createNewSession = () => {
+  currentSessionId.value = null
+  messages.value = []
+  inputMessage.value = ''
+  showSidebar.value = false
+  showToast('已创建新会话')
+}
+
+// 加载会话
+const loadSession = async (sessionId) => {
+  try {
+    currentSessionId.value = sessionId
+    showSidebar.value = false
+    
+    // TODO: 调用API加载会话内容
+    messages.value = [
+      {
+        role: 'user',
+        content: '请解释一下快速排序算法的原理',
+        time: new Date(Date.now() - 3600000).toISOString()
+      },
+      {
+        role: 'assistant',
+        content: '快速排序是一种**分治算法**，其基本思想是：\n1. 选择一个基准元素\n2. 将数组分为两部分\n3. 递归排序',
+        time: new Date(Date.now() - 3500000).toISOString()
+      }
+    ]
+    
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('加载会话失败:', error)
+    showToast('加载会话失败')
+  }
+}
+
+// 发送消息
+const sendMessage = async () => {
+  if (!inputMessage.value.trim() || isLoading.value) return
+
+  const userMessage = {
+    role: 'user',
+    content: inputMessage.value,
+    time: new Date().toISOString()
+  }
+
+  messages.value.push(userMessage)
+  const question = inputMessage.value
+  inputMessage.value = ''
+  isLoading.value = true
+
+  await nextTick()
+  scrollToBottom()
+
+  try {
+    // TODO: 调用AI API
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    const aiMessage = {
+      role: 'assistant',
+      content: `这是对"${question}"的回答。我理解您的问题，让我为您详细解答...`,
+      time: new Date().toISOString()
+    }
+
+    messages.value.push(aiMessage)
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('发送消息失败:', error)
+    showToast('发送消息失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 处理文件上传
+const handleFileUpload = (file) => {
+  showToast('文件上传成功，正在识别...')
+  // TODO: 上传文件并OCR识别
+}
+
+// 操作菜单选择
+const onActionSelect = (action) => {
+  showActionSheet.value = false
+  
+  if (action.name === '收藏会话') {
+    collectSession()
+  } else if (action.name === '导出会话') {
+    showExportDialog()
+  } else if (action.name === '生成标题') {
+    generateTitle()
+  }
+}
+
+// 收藏会话
+const collectSession = () => {
+  if (messages.value.length === 0) {
+    showToast('当前会话为空，无法收藏')
+    return
+  }
+  // TODO: 调用API收藏会话
+  showToast('会话已收藏')
+}
+
+// 显示导出对话框
+const showExportDialog = () => {
+  if (messages.value.length === 0) {
+    showToast('当前会话为空，无法导出')
+    return
+  }
+  exportDialogVisible.value = true
+}
+
+// 导出会话
+const exportSession = () => {
+  let content = ''
+  const title = `会话记录_${new Date().toISOString().split('T')[0]}`
+
+  if (exportFormat.value === 'markdown') {
+    content = `# ${title}\n\n`
+    messages.value.forEach(msg => {
+      content += `## ${msg.role === 'user' ? '用户' : 'AI助教'}\n\n${msg.content}\n\n---\n\n`
+    })
+  } else {
+    content = `${title}\n\n`
+    messages.value.forEach(msg => {
+      content += `【${msg.role === 'user' ? '用户' : 'AI助教'}】\n${msg.content}\n\n`
+    })
+  }
+
+  // 移动端文件下载适配
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${title}.${exportFormat.value === 'markdown' ? 'md' : 'txt'}`
+  link.click()
+  URL.revokeObjectURL(url)
+
+  showToast('导出成功')
+}
+
+// 生成标题
+const generateTitle = async () => {
+  if (messages.value.length === 0) {
+    showToast('当前会话为空，无法生成标题')
+    return
+  }
+
+  try {
+    const { value } = await showDialog({
+      title: '生成标题',
+      message: '请输入会话标题',
+      showCancelButton: true,
+      beforeClose: (action, done) => {
+        if (action === 'confirm') {
+          done()
+        } else {
+          done()
+        }
+      }
+    })
+
+    if (value) {
+      showToast('标题已更新')
+    }
+  } catch {
+    // 用户取消
+  }
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  if (messageArea.value) {
+    messageArea.value.scrollTop = messageArea.value.scrollHeight
+  }
+}
+
+// 返回首页
+const goBack = () => {
+  router.back()
+}
+
+// 加载历史会话列表
+const loadSessions = async () => {
+  try {
+    // TODO: 调用API获取会话列表
+    sessions.value = [
+      {
+        id: 1,
+        title: '快速排序算法讨论',
+        updateTime: new Date(Date.now() - 3600000).toISOString()
+      },
+      {
+        id: 2,
+        title: '数据结构课后习题',
+        updateTime: new Date(Date.now() - 86400000).toISOString()
+      }
+    ]
+  } catch (error) {
+    console.error('加载会话列表失败:', error)
+  }
+}
+
+// 监听路由参数，如果携带题目信息则自动填充
+watch(() => route.query.question, (question) => {
+  if (question) {
+    inputMessage.value = question
+  }
+}, { immediate: true })
+
+// 页面加载
+onMounted(() => {
+  loadSessions()
+})
+</script>
+
+<style scoped>
+/* ==================== 全局样式 ==================== */
+.ai-chat-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f0f4ff 0%, #fafbff 100%);
+  position: relative;
+}
+
+/* ==================== 顶部导航栏 ==================== */
+.custom-navbar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+:deep(.custom-navbar .van-nav-bar__title) {
+  color: white;
+  font-weight: 600;
+  font-size: 17px;
+}
+
+:deep(.custom-navbar .van-icon) {
+  color: white;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu-icon {
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.menu-icon:active {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.95);
+}
+
+/* ==================== 侧边栏样式 ==================== */
+.sidebar-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #ffffff 0%, #f8f9ff 100%);
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.close-icon {
+  padding: 6px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-icon:active {
+  background: #e8e8e8;
+  transform: scale(0.9);
+}
+
+.new-session-btn {
+  margin: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  font-weight: 500;
+  height: 44px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.new-session-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.new-session-btn span {
+  margin-left: 6px;
+}
+
+.session-search {
+  padding: 0 16px 12px;
+}
+
+:deep(.session-search .van-search__content) {
+  background: #f5f7fa;
+  border: 1px solid #e8eaed;
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.session-item:active {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.session-item.active {
+  background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
+  border: 1px solid #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.session-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.session-item.active .session-icon {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #909399;
+}
+
+/* ==================== 主对话区 ==================== */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ==================== 模型设置 ==================== */
+.model-settings {
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.model-settings .van-collapse-item__content) {
+  padding: 12px 0;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.settings-group {
+  margin: 0 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.setting-cell {
+  padding: 14px 16px;
+}
+
+:deep(.setting-cell .van-cell__title) {
+  font-weight: 500;
+  color: #303133;
+}
+
+.setting-desc {
+  font-size: 12px;
+  color: #909399;
+  margin-right: 8px;
+}
+
+:deep(.setting-cell .van-icon) {
+  margin-right: 10px;
+}
+
+/* ==================== 消息区域 ==================== */
+.message-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ==================== 欢迎消息 ==================== */
+.welcome-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.welcome-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.welcome-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcome-subtitle {
+  margin: 0 0 24px;
+  font-size: 15px;
+  color: #606266;
+}
+
+.welcome-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  font-size: 14px;
+  color: #606266;
+  transition: all 0.3s ease;
+}
+
+.tip-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tip-item .van-icon {
+  color: #667eea;
+}
+
+/* ==================== 消息列表 ==================== */
+.message-list {
+  padding-bottom: 20px;
+}
+
+.message-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  animation: messageSlideIn 0.3s ease;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-item.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+}
+
+.user-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.ai-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eaed 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #667eea;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.ai-avatar.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.message-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 75%;
+}
+
+.message-item.user .message-content {
+  align-items: flex-end;
+}
+
+.message-text {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 15px;
+  line-height: 1.6;
+  word-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.message-item.assistant .message-text {
+  background: white;
+  color: #303133;
+  border-bottom-left-radius: 4px;
+}
+
+.message-item.user .message-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.message-text:active {
+  transform: scale(0.98);
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
+}
+
+.message-text :deep(code) {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.message-item.user .message-text :deep(code) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.message-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #909399;
+  padding: 0 4px;
+}
+
+/* 加载中动画 */
+.loading-message .message-content {
+  padding: 12px 16px;
+  background: white;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #667eea;
+  animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+/* ==================== 输入区域 ==================== */
+.input-area {
+  background: white;
+  border-top: 1px solid #f0f0f0;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.message-input {
+  flex: 1;
+  background: #f5f7fa;
+  border-radius: 20px;
+  border: 1px solid #e8eaed;
+  transition: all 0.3s ease;
+}
+
+.message-input:focus-within {
+  background: white;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+:deep(.message-input .van-field__control) {
+  font-size: 15px;
+  line-height: 1.6;
+  padding: 10px 16px;
+  max-height: 100px;
+}
+
+:deep(.message-input .van-field__control::placeholder) {
+  color: #c0c4cc;
+}
+
+.input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-btn {
+  display: flex;
+  align-items: center;
+}
+
+.action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #606266;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.action-icon:active {
+  background: #e8eaed;
+  transform: scale(0.95);
+}
+
+.send-btn {
+  height: 40px;
+  padding: 0 20px;
+  background: #e8eaed;
+  border: none;
+  color: #909399;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.send-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.send-btn.active:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.send-btn:disabled {
+  opacity: 0.6;
+}
+
+/* ==================== 悬浮功能按钮 ==================== */
+.floating-menu {
+  position: fixed;
+  right: 20px;
+  bottom: calc(100px + env(safe-area-inset-bottom));
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 999;
+  animation: floatButton 3s ease-in-out infinite;
+}
+
+@keyframes floatButton {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.floating-menu:active {
+  transform: scale(0.9);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+/* ==================== 操作菜单优化 ==================== */
+:deep(.van-action-sheet__item) {
+  padding: 16px;
+  font-size: 15px;
+}
+
+:deep(.van-action-sheet__item:active) {
+  background: #f5f7fa;
+}
+
+/* ==================== 对话框优化 ==================== */
+:deep(.van-dialog__header) {
+  font-weight: 600;
+  color: #303133;
+}
+
+:deep(.van-dialog__confirm) {
+  color: #667eea;
+}
+
+/* ==================== 响应式优化 ==================== */
+@media (max-width: 375px) {
+  .welcome-icon {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .welcome-title {
+    font-size: 20px;
+  }
+  
+  .message-text {
+    font-size: 14px;
+  }
+}
+
+/* ==================== 滚动条美化 ==================== */
+.message-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.message-area::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.3);
+  border-radius: 2px;
+}
+
+.message-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.session-list::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.3);
+  border-radius: 2px;
+}
+
+.session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+</style>
