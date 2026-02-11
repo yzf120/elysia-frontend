@@ -15,6 +15,26 @@ const TeacherAudit = () => import('../views/admin/TeacherAudit.vue');
 const AnnouncementPublish = () => import('../views/admin/AnnouncementPublish.vue');
 const AdminProfile = () => import('../views/admin/AdminProfile.vue');
 
+// 教师端页面组件
+const TeacherDashboard = () => import('../views/teacher/Dashboard.vue');
+const CreateClass = () => import('../views/teacher/CreateClass.vue');
+const ClassDetail = () => import('../views/teacher/ClassDetail.vue');
+const CourseManagement = () => import('../views/teacher/CourseManagement.vue');
+const CodeReview = () => import('../views/teacher/CodeReview.vue');
+const TeacherProfile = () => import('../views/teacher/TeacherProfile.vue');
+const PublishTask = () => import('../views/teacher/PublishTask.vue');
+const TeacherAIChat = () => import('../views/teacher/TeacherAIChat.vue');
+
+// 学生端页面组件
+const StudentDashboard = () => import('../views/student/Dashboard.vue');
+const AIChat = () => import('../views/student/AIChat.vue');
+const CourseStudy = () => import('../views/student/CourseStudy.vue');
+const TaskComplete = () => import('../views/student/TaskComplete.vue');
+const WrongBook = () => import('../views/student/WrongBook.vue');
+const StudentProfile = () => import('../views/student/StudentProfile.vue');
+const SessionCollection = () => import('../views/student/SessionCollection.vue');
+const StudyPlan = () => import('../views/student/StudyPlan.vue');
+
 const routes = [
   {
     path: '/',
@@ -79,6 +99,112 @@ const routes = [
     name: 'AdminProfile',
     component: AdminProfile,
     meta: { title: '个人信息中心', requiresAuth: true, role: 'admin' }
+  },
+  // 教师端路由
+  {
+    path: '/teacher',
+    redirect: '/teacher/dashboard'
+  },
+  {
+    path: '/teacher/dashboard',
+    name: 'TeacherDashboard',
+    component: TeacherDashboard,
+    meta: { title: '教师首页', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/create-class',
+    name: 'CreateClass',
+    component: CreateClass,
+    meta: { title: '创建班级', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/class/:id',
+    name: 'ClassDetail',
+    component: ClassDetail,
+    meta: { title: '班级详情', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/course-management',
+    name: 'CourseManagement',
+    component: CourseManagement,
+    meta: { title: '课程章节管理', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/code-review',
+    name: 'CodeReview',
+    component: CodeReview,
+    meta: { title: 'AI代码审核', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/profile',
+    name: 'TeacherProfile',
+    component: TeacherProfile,
+    meta: { title: '个人信息中心', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/publish-task',
+    name: 'PublishTask',
+    component: PublishTask,
+    meta: { title: '发布任务', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/ai-chat',
+    name: 'TeacherAIChat',
+    component: TeacherAIChat,
+    meta: { title: 'AI对话', requiresAuth: true, role: 'teacher' }
+  },
+  // 学生端路由
+  {
+    path: '/student',
+    redirect: '/student/dashboard'
+  },
+  {
+    path: '/student/dashboard',
+    name: 'StudentDashboard',
+    component: StudentDashboard,
+    meta: { title: '学生首页', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/ai-chat',
+    name: 'AIChat',
+    component: AIChat,
+    meta: { title: 'AI对话', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/course',
+    name: 'CourseStudy',
+    component: CourseStudy,
+    meta: { title: '课程学习', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/task',
+    name: 'TaskComplete',
+    component: TaskComplete,
+    meta: { title: '任务完成', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/wrong-book',
+    name: 'WrongBook',
+    component: WrongBook,
+    meta: { title: '错题本', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/profile',
+    name: 'StudentProfile',
+    component: StudentProfile,
+    meta: { title: '个人信息中心', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/collection',
+    name: 'SessionCollection',
+    component: SessionCollection,
+    meta: { title: '我的收藏', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/study-plan',
+    name: 'StudyPlan',
+    component: StudyPlan,
+    meta: { title: 'AI学习方案', requiresAuth: true, role: 'student' }
   }
 ];
 

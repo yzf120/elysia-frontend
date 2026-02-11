@@ -5,6 +5,8 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import App from './App.vue';
 import router from './router';
+import './styles/student.css'; // 引入学生端样式
+import './styles/teacher.css'; // 引入教师端样式
 
 const app = createApp(App);
 

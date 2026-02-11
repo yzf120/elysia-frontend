@@ -30,10 +30,53 @@ const router = createRouter({
       component: () => import('@/views/teacher/Dashboard.vue'),
       meta: { requiresAuth: true, userType: 'teacher' }
     },
+    // 学生端路由
     {
       path: '/student/dashboard',
       name: 'student-dashboard',
       component: () => import('@/views/student/Dashboard.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/ai-chat',
+      name: 'student-ai-chat',
+      component: () => import('@/views/student/AIChat.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/course-study',
+      name: 'student-course-study',
+      component: () => import('@/views/student/CourseStudy.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/task-complete',
+      name: 'student-task-complete',
+      component: () => import('@/views/student/TaskComplete.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/wrong-book',
+      name: 'student-wrong-book',
+      component: () => import('@/views/student/WrongBook.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/profile',
+      name: 'student-profile',
+      component: () => import('@/views/student/StudentProfile.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/session-collection',
+      name: 'student-session-collection',
+      component: () => import('@/views/student/SessionCollection.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/study-plan',
+      name: 'student-study-plan',
+      component: () => import('@/views/student/StudyPlan.vue'),
       meta: { requiresAuth: true, userType: 'student' }
     }
   ]
