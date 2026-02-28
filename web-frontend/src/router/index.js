@@ -34,6 +34,7 @@ const WrongBook = () => import('../views/student/WrongBook.vue');
 const StudentProfile = () => import('../views/student/StudentProfile.vue');
 const SessionCollection = () => import('../views/student/SessionCollection.vue');
 const StudyPlan = () => import('../views/student/StudyPlan.vue');
+const ProblemCode = () => import('../views/student/ProblemCode.vue');
 
 const routes = [
   {
@@ -205,6 +206,12 @@ const routes = [
     name: 'StudyPlan',
     component: StudyPlan,
     meta: { title: 'AI学习方案', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/problem/:problemId/code',
+    name: 'ProblemCode',
+    component: ProblemCode,
+    meta: { title: '代码作答', requiresAuth: true, role: 'student' }
   }
 ];
 
