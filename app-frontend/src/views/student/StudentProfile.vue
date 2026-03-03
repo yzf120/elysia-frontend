@@ -322,6 +322,8 @@ const logout = async () => {
     localStorage.removeItem('userInfo')
     localStorage.removeItem('userType')
     localStorage.removeItem('userName')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('teacherId')
 
     showToast({
       type: 'success',

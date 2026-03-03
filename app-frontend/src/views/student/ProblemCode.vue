@@ -38,6 +38,18 @@
         <!-- 题目描述内容 -->
         <div v-show="leftTab === 'problem'" class="tab-body">
 
+          <!-- 加载状态 -->
+          <div v-if="problemLoading" style="text-align:center;padding:40px 0;color:#999;">
+            <van-loading size="24px">题目加载中...</van-loading>
+          </div>
+          <!-- 加载错误 -->
+          <div v-else-if="problemLoadError" style="text-align:center;padding:40px 16px;color:#ee0a24;">
+            {{ problemLoadError }}
+          </div>
+
+          <!-- 题目内容（加载完成后显示） -->
+          <template v-else>
+
           <!-- 题目头部信息 -->
           <div class="problem-header">
             <div class="problem-meta-row">
@@ -114,12 +126,14 @@
             />
           </div>
 
-          <!-- 底部去作答按鈕 -->
+          <!-- 底部去作答按钮 -->
           <div class="tab-footer">
             <van-button type="primary" block round @click="activeTab = 'code'">
               <van-icon name="edit" /> 去写代码
             </van-button>
           </div>
+
+          </template>
 
         </div>
 
@@ -230,10 +244,10 @@
           <div class="ide-footer">
             <span class="code-stats">{{ lineCount }} 行 · {{ code.length }} 字符</span>
             <div class="footer-btns">
-              <van-button size="small" plain @click="onTest">
+              <van-button size="small" plain @click="onTest" :loading="isRunning" :disabled="isRunning">
                 <van-icon name="play-circle-o" /> 测试
               </van-button>
-              <van-button size="small" type="primary" @click="onRun">
+              <van-button size="small" type="primary" @click="onRun" :loading="isRunning" :disabled="isRunning">
                 <van-icon name="upgrade" /> 运行
               </van-button>
             </div>
@@ -271,137 +285,61 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { studentAPI } from '../../api/index.js'
 
 const route = useRoute()
 const router = useRouter()
 
 const problemId = route.params.problemId
 
-// ===== 题目 mock 数据 =====
-const allProblems = {
-  p1: {
-    id: 'p1', title: '两数之和', difficulty: 'easy', tags: ['数组', '哈希表'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给定一个整数数组 <code>nums</code> 和一个整数目标值 <code>target</code>，请你在该数组中找出 <strong>和为目标值</strong> <code>target</code> 的那两个整数，并返回它们的数组下标。',
-    inputFormat: '第一行输入一个整数 n（1 ≤ n ≤ 10^4），表示数组长度。\n第二行输入 n 个整数，表示数组 nums。\n第三行输入目标值 target。',
-    outputFormat: '输出两个整数的下标，用空格分隔（下标从0开始）。',
-    samples: [
-      { input: '4\n2 7 11 15\n9', output: '0 1', explanation: 'nums[0] + nums[1] = 2 + 7 = 9' },
-      { input: '3\n3 2 4\n6', output: '1 2' }
-    ],
-    hint: '可以使用哈希表将时间复杂度降低到 O(n)。'
-  },
-  p2: {
-    id: 'p2', title: '反转链表', difficulty: 'easy', tags: ['链表', '递归'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给你单链表的头节点 <code>head</code>，请你反转链表，并返回反转后的链表。',
-    inputFormat: '第一行输入链表节点数 n。\n第二行输入 n 个整数，表示链表各节点的值。',
-    outputFormat: '输出反转后链表的各节点值，用空格分隔。',
-    samples: [{ input: '5\n1 2 3 4 5', output: '5 4 3 2 1' }],
-    hint: null
-  },
-  p3: {
-    id: 'p3', title: '删除链表的倒数第N个节点', difficulty: 'medium', tags: ['链表', '双指针'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给你一个链表，删除链表的倒数第 <code>n</code> 个节点，并且返回链表的头结点。',
-    inputFormat: '第一行输入链表节点数 m 和 n。\n第二行输入 m 个整数，表示链表各节点的值。',
-    outputFormat: '输出删除后链表的各节点值，用空格分隔。',
-    samples: [{ input: '5 2\n1 2 3 4 5', output: '1 2 3 5', explanation: '删除倒数第2个节点（值为4）' }],
-    hint: '使用快慢指针，快指针先走 n 步。'
-  },
-  p4: {
-    id: 'p4', title: '有效的括号', difficulty: 'easy', tags: ['栈', '字符串'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给定一个只包括 <code>(</code>，<code>)</code>，<code>{</code>，<code>}</code>，<code>[</code>，<code>]</code> 的字符串 s，判断字符串是否有效。',
-    inputFormat: '输入一行字符串 s（1 ≤ |s| ≤ 10^4）。',
-    outputFormat: '若有效输出 true，否则输出 false。',
-    samples: [{ input: '()[]{} ', output: 'true' }],
-    hint: '使用栈来匹配括号。'
-  },
-  p5: {
-    id: 'p5', title: '用栈实现队列', difficulty: 'easy', tags: ['栈', '队列', '设计'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '请你仅使用两个栈实现先入先出队列。',
-    inputFormat: '多行输入，每行一个操作。',
-    outputFormat: '对每个 pop/peek/empty 操作输出对应结果。',
-    samples: [{ input: 'push 1\npush 2\npeek\npop\nempty', output: '1\n1\nfalse' }],
-    hint: '使用两个栈，一个用于入队，一个用于出队。'
-  },
-  p6: {
-    id: 'p6', title: '二叉树的最大深度', difficulty: 'easy', tags: ['树', 'DFS', 'BFS'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给定一个二叉树 <code>root</code>，返回其最大深度。',
-    inputFormat: '按层序输入二叉树，null 表示空节点。',
-    outputFormat: '输出二叉树的最大深度。',
-    samples: [{ input: '3 9 20 null null 15 7', output: '3' }],
-    hint: '可以使用递归（DFS）或迭代（BFS）两种方式。'
-  },
-  p7: {
-    id: 'p7', title: '二叉树的中序遍历', difficulty: 'easy', tags: ['树', '栈', '递归'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给定一个二叉树的根节点 <code>root</code>，返回它的中序遍历结果。',
-    inputFormat: '按层序输入二叉树，null 表示空节点。',
-    outputFormat: '输出中序遍历序列，用空格分隔。',
-    samples: [{ input: '1 null 2 3', output: '1 3 2' }],
-    hint: null
-  },
-  p8: {
-    id: 'p8', title: '路径总和', difficulty: 'medium', tags: ['树', 'DFS', '回溯'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '判断该树中是否存在根节点到叶子节点的路径，路径上所有节点值相加等于目标和。',
-    inputFormat: '第一行输入目标和 targetSum。\n第二行按层序输入二叉树。',
-    outputFormat: '若存在输出 true，否则输出 false。',
-    samples: [{ input: '22\n5 4 8 11 null 13 4 7 2 null null null 1', output: 'true', explanation: '路径 5→4→11→2 的和为 22' }],
-    hint: '使用 DFS 递归，每次将目标值减去当前节点值。'
-  },
-  p9: {
-    id: 'p9', title: '岛屿数量', difficulty: 'medium', tags: ['图', 'DFS', 'BFS', '并查集'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给你一个由 \'1\'（陆地）和 \'0\'（水）组成的二维网格，请你计算网格中岛屿的数量。',
-    inputFormat: '第一行输入 m 和 n（网格行列数）。\n接下来 m 行，每行 n 个字符。',
-    outputFormat: '输出岛屿数量。',
-    samples: [{ input: '4 5\n11110\n11010\n11000\n00000', output: '1' }],
-    hint: '使用 DFS 或 BFS 遍历，将访问过的陆地标记为已访问。'
-  },
-  p10: {
-    id: 'p10', title: '排序数组', difficulty: 'medium', tags: ['排序', '分治', '堆'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给你一个整数数组 <code>nums</code>，请你将该数组升序排列。',
-    inputFormat: '第一行输入数组长度 n。\n第二行输入 n 个整数。',
-    outputFormat: '输出升序排列后的数组，用空格分隔。',
-    samples: [{ input: '6\n5 2 3 1 4 6', output: '1 2 3 4 5 6' }],
-    hint: '尝试实现快速排序或归并排序。'
-  },
-  p11: {
-    id: 'p11', title: '爬楼梯', difficulty: 'easy', tags: ['动态规划', '记忆化搜索'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '假设你正在爬楼梯。需要 <code>n</code> 阶你才能到达楼顶。每次你可以爬 1 或 2 个台阶。',
-    inputFormat: '输入一个整数 n（1 ≤ n ≤ 45）。',
-    outputFormat: '输出爬到楼顶的方法数。',
-    samples: [{ input: '3', output: '3', explanation: '1+1+1、1+2 或 2+1，共3种方法' }],
-    hint: 'dp[i] = dp[i-1] + dp[i-2]，类似斐波那契数列。'
-  },
-  p12: {
-    id: 'p12', title: '最长递增子序列', difficulty: 'medium', tags: ['动态规划', '二分查找'],
-    timeLimit: 1000, memoryLimit: 256,
-    description: '给你一个整数数组 <code>nums</code>，找到其中最长严格递增子序列的长度。',
-    inputFormat: '第一行输入数组长度 n。\n第二行输入 n 个整数。',
-    outputFormat: '输出最长递增子序列的长度。',
-    samples: [{ input: '8\n10 9 2 5 3 7 101 18', output: '4', explanation: '最长递增子序列为 [2,3,7,101]' }],
-    hint: '使用 dp[i] 表示以 nums[i] 结尾的最长递增子序列长度。'
-  },
-  p13: {
-    id: 'p13', title: '进程调度模拟', difficulty: 'hard', tags: ['模拟', '队列', '优先级'],
-    timeLimit: 2000, memoryLimit: 256,
-    description: '模拟操作系统的进程调度算法，实现先来先服务（FCFS）调度策略。',
-    inputFormat: '第一行输入进程数 n。\n接下来 n 行，每行输入进程ID、到达时间、执行时间。',
-    outputFormat: '输出每个进程的完成时间、周转时间和等待时间。',
-    samples: [{ input: '3\nP1 0 5\nP2 1 3\nP3 2 4', output: 'P1: 完成=5 周转=5 等待=0\nP2: 完成=8 周转=7 等待=4\nP3: 完成=12 周转=10 等待=6' }],
-    hint: '按到达时间排序，依次执行每个进程。'
+// ===== 题目加载状态 =====
+const problemLoading = ref(true)
+const problemLoadError = ref('')
+
+// 题目数据（初始为空，从后端加载）
+const problem = ref({
+  id: 0,
+  title: '加载中...',
+  difficulty: '',
+  tags: [],
+  timeLimit: 1000,
+  memoryLimit: 256,
+  description: '',
+  inputFormat: '',
+  outputFormat: '',
+  samples: [],
+  hint: ''
+})
+
+// 将后端题目数据适配为前端格式
+function adaptProblem(raw) {
+  // 解析 test_cases JSON 字符串为 samples 数组
+  let samples = []
+  try {
+    const cases = JSON.parse(raw.test_cases || '[]')
+    samples = cases.map(c => ({ input: c.input || '', output: c.output || '', explanation: c.explanation || '' }))
+  } catch (e) {
+    samples = []
+  }
+  // 解析 tags 字符串为数组
+  const tags = raw.tags ? raw.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+  // 将中文难度转换为英文（匹配 CSS 类名）
+  const diffMap = { '简单': 'easy', '中等': 'medium', '困难': 'hard' }
+  const difficulty = diffMap[raw.difficulty] || raw.difficulty || ''
+  return {
+    id: raw.id,
+    title: raw.title || '',
+    difficulty,
+    tags,
+    timeLimit: 1000,
+    memoryLimit: 256,
+    description: raw.description || '',
+    inputFormat: '',
+    outputFormat: '',
+    samples,
+    hint: raw.hint || ''
   }
 }
-
-const problem = ref(allProblems[problemId] || allProblems['p1'])
 
 // ===== 语言配置 =====
 const langOptions = [
@@ -1018,45 +956,219 @@ const onKeydown = (e) => {
   }
 }
 
-const onTest = () => {
-  resultTitle.value = '测试结果'
-  resultStatus.value = 'success'
-  resultOutput.value = `运行样例输入：\n${problem.value.samples[0]?.input || ''}\n\n期望输出：\n${problem.value.samples[0]?.output || ''}\n\n实际输出：\n${problem.value.samples[0]?.output || ''}\n\n✓ 样例通过`
-  showResult.value = true
+// ===== 代码运行状态映射 =====
+const RUN_STATUS_MAP = {
+  accepted:              { statusKey: 'accepted', message: '' },
+  wrong_answer:          { statusKey: 'wa',       message: '答案错误' },
+  time_limit_exceeded:   { statusKey: 'tle',      message: '执行超时' },
+  memory_limit_exceeded: { statusKey: 'mle',      message: '内存超限' },
+  compile_error:         { statusKey: 'ce',       message: '编译错误' },
+  runtime_error:         { statusKey: 're',       message: '运行错误' },
+  pending:               { statusKey: 'pending',  message: '评测中' },
+  running:               { statusKey: 'pending',  message: '评测中' },
 }
 
-const onRun = () => {
+// 轮询查询运行结果
+async function pollCodeRunResult(runId, onDone) {
+  const MAX_POLL = 30   // 最多轮询30次
+  const INTERVAL = 1000 // 每次间隔1秒
+  let count = 0
+
+  const poll = async () => {
+    count++
+    try {
+      const res = await studentAPI.getCodeRunResult(runId)
+      const result = res?.data || res
+      const status = result?.status || 'pending'
+
+      if (status === 'pending' || status === 'running') {
+        if (count < MAX_POLL) {
+          setTimeout(poll, INTERVAL)
+        } else {
+          onDone({ status: 'runtime_error', error_msg: '评测超时，请稍后重试', time_cost: 0, memory_used: 0, output: '' })
+        }
+        return
+      }
+      onDone(result)
+    } catch (e) {
+      onDone({ status: 'runtime_error', error_msg: '查询结果失败: ' + (e?.message || e), time_cost: 0, memory_used: 0, output: '' })
+    }
+  }
+  setTimeout(poll, INTERVAL)
+}
+
+const isRunning = ref(false)
+
+// 从路由参数中提取数字 problem_id（兼容 '1'、'p1' 等格式）
+function getProblemNumericId() {
+  const raw = String(problemId || '')
+  // 如果是纯数字直接返回
+  const num = parseInt(raw, 10)
+  if (!isNaN(num) && num > 0) return num
+  // 如果是 'p1' 格式，提取数字部分
+  const match = raw.match(/\d+/)
+  if (match) return parseInt(match[0], 10)
+  return 0
+}
+
+const onTest = async () => {
+  if (isRunning.value) return
+  isRunning.value = true
+
+  const pid = getProblemNumericId()
+  if (!pid) {
+    resultTitle.value = '测试结果'
+    resultStatus.value = 'error'
+    resultOutput.value = '题目ID无效，无法提交'
+    showResult.value = true
+    isRunning.value = false
+    return
+  }
+
+  resultTitle.value = '测试结果'
+  resultStatus.value = 'success'
+  resultOutput.value = '正在提交代码，评测中...'
+  showResult.value = true
+
+  try {
+    // 取第一个样例的输入作为测试输入
+    const testInput = (problem.value.samples && problem.value.samples[0]?.input) || ''
+    const submitRes = await studentAPI.submitCodeRun(pid, selectedLang.value, code.value, 'test', testInput)
+    const runId = submitRes?.data?.run_id || submitRes?.run_id
+    if (!runId) {
+      resultOutput.value = '提交失败：' + (submitRes?.message || '未知错误')
+      resultStatus.value = 'error'
+      isRunning.value = false
+      return
+    }
+
+    // 轮询结果
+    pollCodeRunResult(runId, (result) => {
+      isRunning.value = false
+      const statusInfo = RUN_STATUS_MAP[result.status] || { statusKey: 're', message: '未知状态' }
+      const timeCost = result.time_cost || 0
+      const memUsed = result.memory_used ? (result.memory_used / 1024).toFixed(1) : null
+
+      addRunRecord(statusInfo.statusKey, {
+        timeCost,
+        memory: memUsed,
+        message: result.error_msg || statusInfo.message,
+      })
+
+      if (result.status === 'accepted') {
+        resultStatus.value = 'success'
+        resultOutput.value = `✓ 样例通过\n\n实际输出：\n${result.output || ''}\n\n执行时间：${timeCost}ms${memUsed ? '\n内存使用：' + memUsed + 'MB' : ''}`
+      } else {
+        resultStatus.value = 'error'
+        resultOutput.value = `✗ ${statusInfo.message || result.status}\n\n${result.error_msg || ''}\n\n实际输出：\n${result.output || ''}`
+      }
+
+      // 重新打开弹窗展示结果
+      showResult.value = true
+      // 切换到运行记录
+      activeTab.value = 'problem'
+      nextTick(() => { leftTab.value = 'records' })
+    })
+  } catch (e) {
+    isRunning.value = false
+    resultStatus.value = 'error'
+    resultOutput.value = '提交失败：' + (e?.message || e)
+    showResult.value = true
+  }
+}
+
+const onRun = async () => {
+  if (isRunning.value) return
+  isRunning.value = true
+
+  const pid = getProblemNumericId()
+  if (!pid) {
+    resultTitle.value = '运行结果'
+    resultStatus.value = 'error'
+    resultOutput.value = '题目ID无效，无法提交'
+    showResult.value = true
+    isRunning.value = false
+    return
+  }
+
   resultTitle.value = '运行结果'
   resultStatus.value = 'success'
   resultOutput.value = `提交成功！\n\n语言：${langOptions.find(l => l.value === selectedLang.value)?.text}\n代码长度：${code.value.length} 字符\n\n评测中... 请稍候`
   showResult.value = true
 
-  // 模拟评测结果
-  const mockResults = [
-    { statusKey: 'accepted', timeCost: Math.floor(Math.random() * 200 + 50), memory: (Math.random() * 10 + 5).toFixed(1) },
-    { statusKey: 'wa',       timeCost: Math.floor(Math.random() * 100 + 30), memory: (Math.random() * 8 + 4).toFixed(1), message: '第 2 个测试点答案错误\n期望输出：1 2 3\n实际输出：3 2 1' },
-    { statusKey: 'tle',      timeCost: problem.value.timeLimit + 100, memory: (Math.random() * 20 + 10).toFixed(1), message: `执行时间超过限制 ${problem.value.timeLimit}ms` },
-    { statusKey: 'mle',      timeCost: Math.floor(Math.random() * 300 + 100), memory: problem.value.memoryLimit + 10, message: `内存使用超过限制 ${problem.value.memoryLimit}MB` },
-    { statusKey: 'ce',       message: `编译错误：\nerror: expected ';' before '}' token` },
-    { statusKey: 're',       timeCost: Math.floor(Math.random() * 50 + 10), memory: (Math.random() * 5 + 2).toFixed(1), message: '运行时错误：Segmentation fault' },
-  ]
-  const picked = mockResults[Math.floor(Math.random() * mockResults.length)]
-  setTimeout(() => {
-    addRunRecord(picked.statusKey, picked)
-    // 切换到题目 Tab 并显示运行记录
-    activeTab.value = 'problem'
-    nextTick(() => { leftTab.value = 'records' })
-  }, 800)
+  try {
+    const submitRes = await studentAPI.submitCodeRun(pid, selectedLang.value, code.value, 'submit')
+    const runId = submitRes?.data?.run_id || submitRes?.run_id
+    if (!runId) {
+      resultOutput.value = '提交失败：' + (submitRes?.message || '未知错误')
+      resultStatus.value = 'error'
+      isRunning.value = false
+      return
+    }
+
+    // 轮询结果
+    pollCodeRunResult(runId, (result) => {
+      isRunning.value = false
+      const statusInfo = RUN_STATUS_MAP[result.status] || { statusKey: 're', message: '未知状态' }
+      const timeCost = result.time_cost || 0
+      const memUsed = result.memory_used ? (result.memory_used / 1024).toFixed(1) : null
+
+      addRunRecord(statusInfo.statusKey, {
+        timeCost,
+        memory: memUsed,
+        message: result.error_msg || statusInfo.message,
+      })
+
+      if (result.status === 'accepted') {
+        resultStatus.value = 'success'
+        resultOutput.value = `✓ 全部通过\n\n执行时间：${timeCost}ms${memUsed ? '\n内存使用：' + memUsed + 'MB' : ''}`
+      } else {
+        resultStatus.value = 'error'
+        resultOutput.value = `✗ ${statusInfo.message || result.status}\n\n${result.error_msg || ''}`
+      }
+
+      // 重新打开弹窗展示结果
+      showResult.value = true
+      // 切换到运行记录
+      activeTab.value = 'problem'
+      nextTick(() => { leftTab.value = 'records' })
+    })
+  } catch (e) {
+    isRunning.value = false
+    resultStatus.value = 'error'
+    resultOutput.value = '提交失败：' + (e?.message || e)
+    showResult.value = true
+  }
 }
 
 const difficultyLabel = (diff) => {
+  // 后端直接返回中文，兼容英文格式
   const map = { easy: '简单', medium: '中等', hard: '困难' }
-  return map[diff] || diff
+  return map[diff] || diff || ''
 }
 
 const goBack = () => router.back()
 
-onMounted(() => {
+onMounted(async () => {
+  // 从后端加载题目数据
+  const numId = getProblemNumericId()
+  if (numId > 0) {
+    try {
+      const res = await studentAPI.getProblem(numId)
+      const raw = res?.data?.problem || res?.problem
+      if (raw) {
+        problem.value = adaptProblem(raw)
+      } else {
+        problemLoadError.value = '题目数据为空'
+      }
+    } catch (e) {
+      problemLoadError.value = '题目加载失败：' + (e?.message || e)
+    }
+  } else {
+    problemLoadError.value = '题目ID无效'
+  }
+  problemLoading.value = false
+
   nextTick(() => {
     syncScroll()
     updateScrollbar()

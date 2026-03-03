@@ -17,11 +17,26 @@
           <span class="section-sub">点击班级进入课程学习</span>
         </div>
 
-        <div v-if="classList.length === 0" class="empty-wrap">
+        <!-- 加载中 -->
+        <div v-if="classListLoading" style="text-align:center;padding:60px 0;">
+          <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+          <div style="margin-top:8px;color:#909399;font-size:14px;">加载中...</div>
+        </div>
+
+        <!-- 加载失败 -->
+        <div v-else-if="classListError" style="text-align:center;padding:40px 16px;color:#f56c6c;">
+          {{ classListError }}
+          <div style="margin-top:12px">
+            <el-button size="small" type="primary" @click="loadStudentClasses">重新加载</el-button>
+          </div>
+        </div>
+
+        <!-- 空列表 -->
+        <div v-else-if="classList.length === 0" class="empty-wrap">
           <el-empty description="暂未加入任何班级" />
         </div>
 
-        <div class="class-grid">
+        <div v-else class="class-grid">
           <div
             v-for="cls in classList"
             :key="cls.id"
@@ -266,12 +281,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { studentAPI } from '@/services/index.js'
 import {
   ArrowLeft, ArrowRight, Reading, User, UserFilled,
   Notebook, CircleCheck, CircleClose, Timer, Coin,
-  InfoFilled, Edit
+  InfoFilled, Edit, Loading
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -283,314 +300,76 @@ const currentProblem = ref(null)
 const showProblemDetail = ref(false)
 const activeChapters = ref([])
 
-// ===== 模拟数据：班级列表 =====
-const classList = ref([
-  {
-    id: 1,
-    name: '数据结构 2024春季班',
-    subject: '数据结构',
-    teacher: '张伟老师',
-    studentCount: 42,
-    status: '进行中',
-    progress: 65,
-    color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-  },
-  {
-    id: 2,
-    name: '算法设计与分析 A班',
-    subject: '算法设计',
-    teacher: '李明老师',
-    studentCount: 38,
-    status: '进行中',
-    progress: 30,
-    color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-  },
-  {
-    id: 3,
-    name: '操作系统原理 2024',
-    subject: '操作系统',
-    teacher: '王芳老师',
-    studentCount: 55,
-    status: '已结束',
-    progress: 100,
-    color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-  }
-])
+// 班级列表加载状态
+const classListLoading = ref(true)
+const classListError = ref('')
 
-// ===== 模拟数据：课程章节与题目 =====
-const courseChaptersMap = {
-  1: [
-    {
-      id: 'c1',
-      title: '第一章 线性表',
-      problems: [
-        {
-          id: 'p1',
-          title: '两数之和',
-          difficulty: 'easy',
-          tags: ['数组', '哈希表'],
-          solved: true,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给定一个整数数组 <code>nums</code> 和一个整数目标值 <code>target</code>，请你在该数组中找出 <strong>和为目标值</strong> <code>target</code> 的那两个整数，并返回它们的数组下标。',
-          inputFormat: '第一行输入一个整数 n（1 ≤ n ≤ 10^4），表示数组长度。\n第二行输入 n 个整数，表示数组 nums。\n第三行输入目标值 target。',
-          outputFormat: '输出两个整数的下标，用空格分隔（下标从0开始）。',
-          samples: [
-            { input: '4\n2 7 11 15\n9', output: '0 1', explanation: 'nums[0] + nums[1] = 2 + 7 = 9' },
-            { input: '3\n3 2 4\n6', output: '1 2' }
-          ],
-          hint: '可以使用哈希表将时间复杂度降低到 O(n)。'
-        },
-        {
-          id: 'p2',
-          title: '反转链表',
-          difficulty: 'easy',
-          tags: ['链表', '递归'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你单链表的头节点 <code>head</code>，请你反转链表，并返回反转后的链表。',
-          inputFormat: '第一行输入链表节点数 n。\n第二行输入 n 个整数，表示链表各节点的值。',
-          outputFormat: '输出反转后链表的各节点值，用空格分隔。',
-          samples: [
-            { input: '5\n1 2 3 4 5', output: '5 4 3 2 1' },
-            { input: '2\n1 2', output: '2 1' }
-          ],
-          hint: null
-        },
-        {
-          id: 'p3',
-          title: '删除链表的倒数第N个节点',
-          difficulty: 'medium',
-          tags: ['链表', '双指针'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你一个链表，删除链表的倒数第 <code>n</code> 个节点，并且返回链表的头结点。',
-          inputFormat: '第一行输入链表节点数 m 和 n。\n第二行输入 m 个整数，表示链表各节点的值。',
-          outputFormat: '输出删除后链表的各节点值，用空格分隔。',
-          samples: [
-            { input: '5 2\n1 2 3 4 5', output: '1 2 3 5', explanation: '删除倒数第2个节点（值为4）' }
-          ],
-          hint: '使用快慢指针，快指针先走 n 步。'
+// 班级列表（从后端接口加载）
+const classList = ref([])
+
+// 预设卡片颜色（按班级索引循环使用）
+const cardColors = [
+  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)'
+]
+
+// 加载学生班级列表
+const loadStudentClasses = async () => {
+  classListLoading.value = true
+  classListError.value = ''
+  try {
+    // 优先从 userInfo 中获取 student_id，兼容 userId 方式
+    let studentId = localStorage.getItem('userId') || ''
+    if (!studentId) {
+      try {
+        const raw = localStorage.getItem('userInfo')
+        if (raw && raw !== 'undefined' && raw !== 'null') {
+          const userInfo = JSON.parse(raw)
+          studentId = userInfo.student_id || userInfo.id || ''
         }
-      ]
-    },
-    {
-      id: 'c2',
-      title: '第二章 栈与队列',
-      problems: [
-        {
-          id: 'p4',
-          title: '有效的括号',
-          difficulty: 'easy',
-          tags: ['栈', '字符串'],
-          solved: true,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给定一个只包括 <code>(</code>，<code>)</code>，<code>{</code>，<code>}</code>，<code>[</code>，<code>]</code> 的字符串 s，判断字符串是否有效。',
-          inputFormat: '输入一行字符串 s（1 ≤ |s| ≤ 10^4）。',
-          outputFormat: '若有效输出 true，否则输出 false。',
-          samples: [
-            { input: '()', output: 'true' },
-            { input: '()[]{} ', output: 'true' },
-            { input: '(]', output: 'false' }
-          ],
-          hint: '使用栈来匹配括号。'
-        },
-        {
-          id: 'p5',
-          title: '用栈实现队列',
-          difficulty: 'easy',
-          tags: ['栈', '队列', '设计'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '请你仅使用两个栈实现先入先出队列。队列应当支持一般队列支持的所有操作（push、pop、peek、empty）。',
-          inputFormat: '多行输入，每行一个操作：\npush x：将元素 x 入队\npop：出队并输出队首元素\npeek：输出队首元素但不出队\nempty：输出队列是否为空',
-          outputFormat: '对每个 pop/peek/empty 操作输出对应结果。',
-          samples: [
-            { input: 'push 1\npush 2\npeek\npop\nempty', output: '1\n1\nfalse' }
-          ],
-          hint: '使用两个栈，一个用于入队，一个用于出队。'
-        }
-      ]
-    },
-    {
-      id: 'c3',
-      title: '第三章 树与二叉树',
-      problems: [
-        {
-          id: 'p6',
-          title: '二叉树的最大深度',
-          difficulty: 'easy',
-          tags: ['树', 'DFS', 'BFS'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给定一个二叉树 <code>root</code>，返回其最大深度。二叉树的最大深度是指从根节点到最远叶子节点的最长路径上的节点数。',
-          inputFormat: '按层序输入二叉树，null 表示空节点。',
-          outputFormat: '输出二叉树的最大深度。',
-          samples: [
-            { input: '3 9 20 null null 15 7', output: '3' },
-            { input: '1 null 2', output: '2' }
-          ],
-          hint: '可以使用递归（DFS）或迭代（BFS）两种方式。'
-        },
-        {
-          id: 'p7',
-          title: '二叉树的中序遍历',
-          difficulty: 'easy',
-          tags: ['树', '栈', '递归'],
-          solved: true,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给定一个二叉树的根节点 <code>root</code>，返回它的中序遍历结果。',
-          inputFormat: '按层序输入二叉树，null 表示空节点。',
-          outputFormat: '输出中序遍历序列，用空格分隔。',
-          samples: [
-            { input: '1 null 2 3', output: '1 3 2' },
-            { input: '1 2 3 4 5', output: '4 2 5 1 3' }
-          ],
-          hint: null
-        },
-        {
-          id: 'p8',
-          title: '路径总和',
-          difficulty: 'medium',
-          tags: ['树', 'DFS', '回溯'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你二叉树的根节点 <code>root</code> 和一个表示目标和的整数 <code>targetSum</code>。判断该树中是否存在根节点到叶子节点的路径，这条路径上所有节点值相加等于目标和 <code>targetSum</code>。',
-          inputFormat: '第一行输入目标和 targetSum。\n第二行按层序输入二叉树。',
-          outputFormat: '若存在输出 true，否则输出 false。',
-          samples: [
-            { input: '22\n5 4 8 11 null 13 4 7 2 null null null 1', output: 'true', explanation: '路径 5→4→11→2 的和为 22' }
-          ],
-          hint: '使用 DFS 递归，每次将目标值减去当前节点值。'
-        }
-      ]
-    },
-    {
-      id: 'c4',
-      title: '第四章 图论基础',
-      problems: [
-        {
-          id: 'p9',
-          title: '岛屿数量',
-          difficulty: 'medium',
-          tags: ['图', 'DFS', 'BFS', '并查集'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你一个由 <code>\'1\'</code>（陆地）和 <code>\'0\'</code>（水）组成的二维网格，请你计算网格中岛屿的数量。',
-          inputFormat: '第一行输入 m 和 n（网格行列数）。\n接下来 m 行，每行 n 个字符（\'0\' 或 \'1\'）。',
-          outputFormat: '输出岛屿数量。',
-          samples: [
-            { input: '4 5\n11110\n11010\n11000\n00000', output: '1' },
-            { input: '4 5\n11000\n11000\n00100\n00011', output: '3' }
-          ],
-          hint: '使用 DFS 或 BFS 遍历，将访问过的陆地标记为已访问。'
-        }
-      ]
+      } catch (e) {
+        console.warn('解析 userInfo 失败:', e)
+      }
     }
-  ],
-  2: [
-    {
-      id: 'c5',
-      title: '第一章 排序算法',
-      problems: [
-        {
-          id: 'p10',
-          title: '排序数组',
-          difficulty: 'medium',
-          tags: ['排序', '分治', '堆'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你一个整数数组 <code>nums</code>，请你将该数组升序排列。',
-          inputFormat: '第一行输入数组长度 n。\n第二行输入 n 个整数。',
-          outputFormat: '输出升序排列后的数组，用空格分隔。',
-          samples: [
-            { input: '6\n5 2 3 1 4 6', output: '1 2 3 4 5 6' }
-          ],
-          hint: '尝试实现快速排序或归并排序。'
-        }
-      ]
-    },
-    {
-      id: 'c6',
-      title: '第二章 动态规划',
-      problems: [
-        {
-          id: 'p11',
-          title: '爬楼梯',
-          difficulty: 'easy',
-          tags: ['动态规划', '记忆化搜索'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '假设你正在爬楼梯。需要 <code>n</code> 阶你才能到达楼顶。每次你可以爬 <code>1</code> 或 <code>2</code> 个台阶。你有多少种不同的方法可以爬到楼顶呢？',
-          inputFormat: '输入一个整数 n（1 ≤ n ≤ 45）。',
-          outputFormat: '输出爬到楼顶的方法数。',
-          samples: [
-            { input: '2', output: '2', explanation: '1+1 或 2，共2种方法' },
-            { input: '3', output: '3', explanation: '1+1+1、1+2 或 2+1，共3种方法' }
-          ],
-          hint: 'dp[i] = dp[i-1] + dp[i-2]，类似斐波那契数列。'
-        },
-        {
-          id: 'p12',
-          title: '最长递增子序列',
-          difficulty: 'medium',
-          tags: ['动态规划', '二分查找'],
-          solved: false,
-          timeLimit: 1000,
-          memoryLimit: 256,
-          description: '给你一个整数数组 <code>nums</code>，找到其中最长严格递增子序列的长度。',
-          inputFormat: '第一行输入数组长度 n。\n第二行输入 n 个整数。',
-          outputFormat: '输出最长递增子序列的长度。',
-          samples: [
-            { input: '8\n10 9 2 5 3 7 101 18', output: '4', explanation: '最长递增子序列为 [2,3,7,101]' }
-          ],
-          hint: '使用 dp[i] 表示以 nums[i] 结尾的最长递增子序列长度。'
-        }
-      ]
+    if (!studentId) {
+      classListError.value = '未获取到学生信息，请重新登录'
+      return
     }
-  ],
-  3: [
-    {
-      id: 'c7',
-      title: '第一章 进程管理',
-      problems: [
-        {
-          id: 'p13',
-          title: '进程调度模拟',
-          difficulty: 'hard',
-          tags: ['模拟', '队列', '优先级'],
-          solved: false,
-          timeLimit: 2000,
-          memoryLimit: 256,
-          description: '模拟操作系统的进程调度算法，实现先来先服务（FCFS）调度策略。',
-          inputFormat: '第一行输入进程数 n。\n接下来 n 行，每行输入进程ID、到达时间、执行时间。',
-          outputFormat: '输出每个进程的完成时间、周转时间和等待时间。',
-          samples: [
-            { input: '3\nP1 0 5\nP2 1 3\nP3 2 4', output: 'P1: 完成=5 周转=5 等待=0\nP2: 完成=8 周转=7 等待=4\nP3: 完成=12 周转=10 等待=6' }
-          ],
-          hint: '按到达时间排序，依次执行每个进程。'
-        }
-      ]
-    }
-  ]
+    const res = await studentAPI.getStudentClasses(studentId)
+    const classes = res?.classes || []
+    classList.value = classes.map((cls, idx) => ({
+      id: cls.class_id,
+      name: cls.class_name,
+      subject: cls.subject_name || cls.subject_id || '',
+      teacher: cls.teacher_name ? cls.teacher_name + '老师' : '',
+      studentCount: cls.current_students || 0,
+      status: cls.status === 1 ? '进行中' : '已结束',
+      progress: 0,
+      color: cardColors[idx % cardColors.length],
+      _raw: cls
+    }))
+  } catch (e) {
+    classListError.value = '班级加载失败：' + (e?.message || e)
+    ElMessage.error('班级加载失败')
+  } finally {
+    classListLoading.value = false
+  }
 }
+
+onMounted(() => {
+  loadStudentClasses()
+})
 
 const courseChapters = ref([])
 
 // 进入班级
 const enterClass = (cls) => {
   currentClass.value = cls
-  courseChapters.value = courseChaptersMap[cls.id] || []
+  courseChapters.value = []
   activeChapters.value = []
   currentView.value = 'catalog'
 }

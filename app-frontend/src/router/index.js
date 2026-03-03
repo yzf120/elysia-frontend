@@ -84,6 +84,68 @@ const router = createRouter({
       name: 'student-problem-code',
       component: () => import('@/views/student/ProblemCode.vue'),
       meta: { requiresAuth: true, userType: 'student' }
+    },
+    // 班级相关路由（教师端）
+    {
+      path: '/teacher/class-management',
+      name: 'teacher-class-management',
+      component: () => import('@/views/teacher/ClassManagement.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/class/:classId',
+      name: 'teacher-class-detail',
+      component: () => import('@/views/teacher/ClassDetail.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/create-class',
+      name: 'teacher-create-class',
+      component: () => import('@/views/teacher/CreateClass.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/course-management',
+      name: 'teacher-course-management',
+      component: () => import('@/views/teacher/CourseManagement.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/code-review',
+      name: 'teacher-code-review',
+      component: () => import('@/views/teacher/CodeReview.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/ai-chat',
+      name: 'teacher-ai-chat',
+      component: () => import('@/views/teacher/TeacherAIChat.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/profile',
+      name: 'teacher-profile',
+      component: () => import('@/views/teacher/TeacherProfile.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/publish-task',
+      name: 'teacher-publish-task',
+      component: () => import('@/views/teacher/PublishTask.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    // 班级相关路由（学生端）
+    {
+      path: '/student/class-list',
+      name: 'student-class-list',
+      component: () => import('@/views/student/ClassList.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
+    },
+    {
+      path: '/student/class/:classId',
+      name: 'student-class-detail',
+      component: () => import('@/views/student/ClassDetail.vue'),
+      meta: { requiresAuth: true, userType: 'student' }
     }
   ]
 })

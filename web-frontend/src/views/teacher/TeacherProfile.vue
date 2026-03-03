@@ -47,7 +47,7 @@
 
         <!-- 关联班级Tab -->
         <el-tab-pane label="关联班级" name="classes">
-          <el-table :data="classList" class="teacher-table" stripe>
+          <el-table :data="classList" class="teacher-table" stripe v-loading="classLoading">
             <el-table-column prop="name" label="班级名称" />
             <el-table-column prop="subject" label="授课科目" />
             <el-table-column prop="semester" label="学期" />
@@ -91,6 +91,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { teacherAPI } from '@/services/index';
 
 const router = useRouter();
 
@@ -104,6 +105,7 @@ const profileForm = ref({
 });
 
 const classList = ref([]);
+const classLoading = ref(false);
 
 const securityForm = ref({
   oldPassword: '',
@@ -111,18 +113,39 @@ const securityForm = ref({
   confirmPassword: ''
 });
 
-const loadProfile = async () => {
-  profileForm.value = {
-    name: localStorage.getItem('userName') || '教师',
-    email: 'teacher@example.com',
-    subjects: ['Python编程', '数据结构'],
-    teachingYears: 5
-  };
+// 模仿 app 端：从 localStorage userInfo 读取真实数据
+const loadProfile = () => {
+  const raw = localStorage.getItem('userInfo');
+  if (raw && raw !== 'undefined' && raw !== 'null') {
+    try {
+      const parsed = JSON.parse(raw);
+      profileForm.value.name = parsed.teacher_name || parsed.name || localStorage.getItem('userName') || '教师';
+      profileForm.value.email = parsed.email || '';
+      profileForm.value.teachingYears = parsed.teaching_years || 0;
+    } catch {}
+  } else {
+    profileForm.value.name = localStorage.getItem('userName') || '教师';
+  }
+};
 
-  classList.value = [
-    { name: '2024春季Python编程班', subject: 'Python编程', semester: '2024春季', studentCount: 28 },
-    { name: '2024春季数据结构班', subject: '数据结构', semester: '2024春季', studentCount: 25 }
-  ];
+// 模仿 app 端：调用真实 API 获取关联班级
+const loadClasses = async () => {
+  classLoading.value = true;
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || localStorage.getItem('userId') || '';
+    const res = await teacherAPI.getTeacherClasses(teacherId);
+    classList.value = (res.data?.classes || res.classes || []).map(cls => ({
+      name: cls.class_name || cls.className,
+      subject: cls.subject_name || cls.subject,
+      semester: cls.semester_name || cls.semester,
+      studentCount: cls.current_students ?? cls.currentStudents ?? 0
+    }));
+  } catch {
+    ElMessage.error('加载班级失败');
+  } finally {
+    classLoading.value = false;
+  }
 };
 
 const saveProfile = async () => {
@@ -172,6 +195,7 @@ const goBack = () => {
 
 onMounted(() => {
   loadProfile();
+  loadClasses();
 });
 </script>
 

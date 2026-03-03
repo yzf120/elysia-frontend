@@ -123,15 +123,22 @@ const handlePasswordLogin = async () => {
       passwordForm.value.password
     )
     
-    if (result.token) {
-      localStorage.setItem('token', result.token)
-    }
-    if (result.user_info) {
-      localStorage.setItem('userInfo', JSON.stringify(result.user_info))
-      localStorage.setItem('userType', 'admin')
+    // 后端返回结构为 { data: { token, user_info, message } }
+    const respData = result.data || result
+    const token = respData.token
+    const userInfo = respData.user_info
+
+    localStorage.setItem('token', token)
+    localStorage.setItem('userType', 'admin')
+    localStorage.setItem('userInfo', userInfo ? JSON.stringify(userInfo) : '{}')
+    // 存储 userId，供各页面统一使用（模仿 web 端）
+    if (userInfo) {
+      const uid = userInfo.student_id || userInfo.teacher_id || userInfo.admin_id || userInfo.id || ''
+      localStorage.setItem('userId', uid)
+      localStorage.setItem('userName', userInfo.admin_name || userInfo.name || '')
     }
     
-    showToast({ type: 'success', message: result.message || '登录成功' })
+    showToast({ type: 'success', message: respData.message || '登录成功' })
     setTimeout(() => {
       router.push('/admin/dashboard')
     }, 1000)
@@ -150,15 +157,22 @@ const handleSmsLogin = async () => {
       smsForm.value.code
     )
     
-    if (result.token) {
-      localStorage.setItem('token', result.token)
-    }
-    if (result.user_info) {
-      localStorage.setItem('userInfo', JSON.stringify(result.user_info))
-      localStorage.setItem('userType', 'admin')
+    // 后端返回结构为 { data: { token, user_info, message } }
+    const respData = result.data || result
+    const token = respData.token
+    const userInfo = respData.user_info
+
+    localStorage.setItem('token', token)
+    localStorage.setItem('userType', 'admin')
+    localStorage.setItem('userInfo', userInfo ? JSON.stringify(userInfo) : '{}')
+    // 存储 userId，供各页面统一使用（模仿 web 端）
+    if (userInfo) {
+      const uid = userInfo.student_id || userInfo.teacher_id || userInfo.admin_id || userInfo.id || ''
+      localStorage.setItem('userId', uid)
+      localStorage.setItem('userName', userInfo.admin_name || userInfo.name || '')
     }
     
-    showToast({ type: 'success', message: result.message || '登录成功' })
+    showToast({ type: 'success', message: respData.message || '登录成功' })
     setTimeout(() => {
       router.push('/admin/dashboard')
     }, 1000)

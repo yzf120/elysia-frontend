@@ -124,16 +124,24 @@ const handlePasswordLogin = async () => {
       passwordForm.value.employeeNumber,
       passwordForm.value.password
     )
-    
-    if (result.token) {
-      localStorage.setItem('token', result.token)
+    // 后端返回结构为 { data: { token, user_info, message } }
+    const respData = result.data || result
+    const token = respData.token
+    const userInfo = respData.user_info
+    console.log('[密码登录] respData:', JSON.stringify(respData))
+    console.log('[密码登录] token:', token, 'userInfo:', JSON.stringify(userInfo))
+
+    localStorage.setItem('token', token)
+    localStorage.setItem('userType', 'teacher')
+    localStorage.setItem('userInfo', userInfo ? JSON.stringify(userInfo) : '{}')
+    // 存储 userId，供各页面统一使用（模仿 web 端）
+    if (userInfo) {
+      const uid = userInfo.student_id || userInfo.teacher_id || userInfo.admin_id || userInfo.id || ''
+      localStorage.setItem('userId', uid)
+      localStorage.setItem('teacherId', uid) // 兼容旧代码
+      localStorage.setItem('userName', userInfo.teacher_name || userInfo.name || '')
     }
-    if (result.user_info) {
-      localStorage.setItem('userInfo', JSON.stringify(result.user_info))
-      localStorage.setItem('userType', 'teacher')
-    }
-    
-    showToast({ type: 'success', message: result.message || '登录成功' })
+    showToast({ type: 'success', message: respData.message || '登录成功' })
     setTimeout(() => {
       router.push('/teacher/dashboard')
     }, 1000)
@@ -151,16 +159,22 @@ const handleSmsLogin = async () => {
       smsForm.value.phoneNumber,
       smsForm.value.code
     )
-    
-    if (result.token) {
-      localStorage.setItem('token', result.token)
+    // 后端返回结构为 { data: { token, user_info, message } }
+    const respData = result.data || result
+    const token = respData.token
+    const userInfo = respData.user_info
+
+    localStorage.setItem('token', token)
+    localStorage.setItem('userType', 'teacher')
+    localStorage.setItem('userInfo', userInfo ? JSON.stringify(userInfo) : '{}')
+    // 存储 userId，供各页面统一使用（模仿 web 端）
+    if (userInfo) {
+      const uid = userInfo.student_id || userInfo.teacher_id || userInfo.admin_id || userInfo.id || ''
+      localStorage.setItem('userId', uid)
+      localStorage.setItem('teacherId', uid) // 兼容旧代码
+      localStorage.setItem('userName', userInfo.teacher_name || userInfo.name || '')
     }
-    if (result.user_info) {
-      localStorage.setItem('userInfo', JSON.stringify(result.user_info))
-      localStorage.setItem('userType', 'teacher')
-    }
-    
-    showToast({ type: 'success', message: result.message || '登录成功' })
+    showToast({ type: 'success', message: respData.message || '登录成功' })
     setTimeout(() => {
       router.push('/teacher/dashboard')
     }, 1000)

@@ -212,13 +212,7 @@
           <div class="card-desc">智能助教对话交流</div>
         </div>
 
-        <div class="teacher-access-card" @click="goToCodeReview">
-          <div class="card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-            <el-icon :size="28"><Document /></el-icon>
-          </div>
-          <div class="card-title">代码审核</div>
-          <div class="card-desc">AI辅助代码批改</div>
-        </div>
+
       </div>
     </div>
   </div>
@@ -228,11 +222,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { teacherAPI } from '@/services/index';
 
 const router = useRouter();
 
 // 教师信息
-const teacherName = ref(localStorage.getItem('userName') || '教师');
+const teacherName = ref('教师');
 
 // 当前激活的Tab
 const activeTab = ref('classes');
@@ -273,38 +268,25 @@ const formatDate = (dateStr) => {
 // 加载班级列表
 const loadClassList = async () => {
   try {
-    // TODO: 调用API获取班级列表
-    // 模拟数据
-    classList.value = [
-      {
-        id: 1,
-        name: '2024春季Python编程班',
-        subject: 'Python编程',
-        semester: '2024春季',
-        currentCount: 28,
-        maxCount: 30,
-        code: '123456'
-      },
-      {
-        id: 2,
-        name: '2024春季数据结构班',
-        subject: '数据结构',
-        semester: '2024春季',
-        currentCount: 25,
-        maxCount: 30,
-        code: '234567'
-      },
-      {
-        id: 3,
-        name: '2024春季算法设计班',
-        subject: '算法设计',
-        semester: '2024春季',
-        currentCount: 30,
-        maxCount: 30,
-        code: '345678'
-      }
-    ];
-    classTotal.value = classList.value.length;
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+    if (!teacherId) {
+      ElMessage.warning('未获取到教师信息，请重新登录');
+      return;
+    }
+    const res = await teacherAPI.getTeacherClasses(teacherId, classPage.value, 10);
+    const classes = res.classes || [];
+    classList.value = classes.map(cls => ({
+      id: cls.class_id,
+      name: cls.class_name,
+      subject: cls.subject_name,
+      semester: cls.semester,
+      currentCount: cls.current_students,
+      maxCount: cls.max_students,
+      code: cls.class_code,
+      status: cls.status
+    }));
+    classTotal.value = res.total || classList.value.length;
   } catch (error) {
     console.error('加载班级列表失败:', error);
     ElMessage.error('加载班级列表失败');
@@ -390,7 +372,9 @@ const deleteClass = async (classId) => {
       type: 'warning'
     });
 
-    // TODO: 调用API删除班级
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+    await teacherAPI.deleteClass(teacherId, classId);
     ElMessage.success('删除成功');
     loadClassList();
   } catch (error) {
@@ -471,6 +455,16 @@ const goToCodeReview = () => {
 
 // 页面加载时获取数据
 onMounted(() => {
+  // 模仿 app 端：从 userInfo 解析教师名字
+  const raw = localStorage.getItem('userInfo')
+  if (raw && raw !== 'undefined' && raw !== 'null') {
+    try {
+      const parsed = JSON.parse(raw)
+      teacherName.value = parsed.teacher_name || parsed.name || localStorage.getItem('userName') || '教师'
+    } catch {}
+  } else {
+    teacherName.value = localStorage.getItem('userName') || '教师'
+  }
   loadClassList();
   loadPendingStudents();
   loadPendingAIContent();

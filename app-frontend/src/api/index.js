@@ -36,6 +36,9 @@ api.interceptors.response.use(
         localStorage.removeItem('token')
         localStorage.removeItem('userInfo')
         localStorage.removeItem('userType')
+        localStorage.removeItem('userId')
+        localStorage.removeItem('userName')
+        localStorage.removeItem('teacherId')
         window.location.href = '/'
       }
       const message = data.message || data.error || '请求失败'
@@ -101,7 +104,39 @@ export const teacherAPI = {
   
   // 登出
   logout: () => 
-    api.post('/teacher/auth/logout')
+    api.post('/teacher/auth/logout'),
+
+  // 查询全量启用科目列表（创建班级时使用）
+  listSubjects: () =>
+    api.get('/class/subjects'),
+
+  // 查询全量启用学期列表（创建班级时使用）
+  listSemesters: () =>
+    api.get('/class/semesters'),
+
+  // 创建班级
+  createClass: (data) =>
+    api.post('/teacher/class/create', data),
+
+  // 查询教师班级列表
+  getTeacherClasses: (teacherId, page = 1, pageSize = 50) =>
+    api.post('/class/teacher-classes', { teacher_id: teacherId, page, page_size: pageSize }),
+
+  // 删除班级
+  deleteClass: (teacherId, classId) =>
+    api.post('/teacher/class/delete', { teacher_id: teacherId, class_id: classId }),
+
+  // 查询班级成员
+  getClassMembers: (classId, page = 1, pageSize = 20) =>
+    api.post('/class/members', { class_id: classId, page, page_size: pageSize }),
+
+  // 移除学生
+  removeStudent: (teacherId, classId, studentId) =>
+    api.post('/teacher/class/remove-student', { teacher_id: teacherId, class_id: classId, student_id: studentId }),
+
+  // 更新班级信息
+  updateClass: (teacherId, classId, data) =>
+    api.post('/teacher/class/update', { teacher_id: teacherId, class_id: classId, ...data })
 }
 
 // ==================== 学生接口 ====================
@@ -133,7 +168,29 @@ export const studentAPI = {
   
   // 登出
   logout: () => 
-    api.post('/student/auth/logout')
+    api.post('/student/auth/logout'),
+
+  // 查询题目详情
+  getProblem: (id) =>
+    api.get('/problem/get', { params: { id } }),
+
+  // 查询学生已加入的班级列表
+  getStudentClasses: (studentId, page = 1, pageSize = 50) =>
+    api.post('/class/student-classes', { student_id: studentId, page, page_size: pageSize }),
+
+  // 提交代码运行/测试任务
+  submitCodeRun: (problemId, language, code, runType, testInput) =>
+    api.post('/student/code/run', {
+      problem_id: problemId,
+      language,
+      code,
+      run_type: runType,       // 'test' 或 'submit'
+      test_input: testInput || '' // 测试模式下的样例输入
+    }),
+
+  // 查询代码运行结果（轮询）
+  getCodeRunResult: (runId) =>
+    api.get('/student/code/result', { params: { run_id: runId } })
 }
 
 export default api

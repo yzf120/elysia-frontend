@@ -203,13 +203,19 @@ export class StudentAuth {
         result = await studentAPI.registerWithSMS(phoneNumber, code, studentNumber, password);
       }
 
+      // 后端返回结构为 { data: { token, user_info, message } }
+      const respData = result.data || result;
+
       // 保存token和用户信息
-      if (result.token) {
-        localStorage.setItem('token', result.token);
+      if (respData.token) {
+        localStorage.setItem('token', respData.token);
       }
-      if (result.user_info) {
-        localStorage.setItem('userInfo', JSON.stringify(result.user_info));
+      if (respData.user_info) {
+        localStorage.setItem('userInfo', JSON.stringify(respData.user_info));
         localStorage.setItem('userType', 'student');
+        // 存储 userId，供各页面使用
+        const uid = respData.user_info.student_id || respData.user_info.id || '';
+        localStorage.setItem('userId', uid);
       }
 
       this.showMessage(result.message || '操作成功', 'success');

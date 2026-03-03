@@ -96,7 +96,27 @@ export const teacherAPI = {
   
   // 登出
   logout: () => 
-    api.post('/teacher/auth/logout')
+    api.post('/teacher/auth/logout'),
+
+  // 查询全量启用科目列表（创建班级时使用）
+  listSubjects: () =>
+    api.get('/class/subjects'),
+
+  // 查询全量启用学期列表（创建班级时使用）
+  listSemesters: () =>
+    api.get('/class/semesters'),
+
+  // 创建班级
+  createClass: (data) =>
+    api.post('/teacher/class/create', data),
+
+  // 查询教师班级列表
+  getTeacherClasses: (teacherId, page = 1, pageSize = 10) =>
+    api.post('/class/teacher-classes', { teacher_id: teacherId, page, page_size: pageSize }),
+
+  // 删除班级
+  deleteClass: (teacherId, classId) =>
+    api.post('/teacher/class/delete', { teacher_id: teacherId, class_id: classId })
 };
 
 // ==================== 学生接口 ====================
@@ -128,7 +148,11 @@ export const studentAPI = {
   
   // 登出
   logout: () => 
-    api.post('/student/auth/logout')
+    api.post('/student/auth/logout'),
+
+  // 查询学生已加入的班级列表
+  getStudentClasses: (studentId, page = 1, pageSize = 50) =>
+    api.post('/class/student-classes', { student_id: studentId, page, page_size: pageSize })
 };
 
 export default api;

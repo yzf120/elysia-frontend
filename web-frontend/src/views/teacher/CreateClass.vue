@@ -33,24 +33,24 @@
         </el-form-item>
 
         <el-form-item label="授课科目" prop="subject">
-          <el-select v-model="formData.subject" placeholder="请选择授课科目" style="width: 100%">
-            <el-option label="Python编程" value="Python编程" />
-            <el-option label="Java编程" value="Java编程" />
-            <el-option label="数据结构" value="数据结构" />
-            <el-option label="算法设计" value="算法设计" />
-            <el-option label="操作系统" value="操作系统" />
-            <el-option label="计算机网络" value="计算机网络" />
-            <el-option label="数据库原理" value="数据库原理" />
-            <el-option label="Web开发" value="Web开发" />
+          <el-select v-model="formData.subject" placeholder="请选择授课科目" style="width: 100%" :loading="loadingSubjects">
+            <el-option
+              v-for="item in subjectList"
+              :key="item.subject_id"
+              :label="item.subject_name"
+              :value="item.subject_id"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="学期" prop="semester">
-          <el-select v-model="formData.semester" placeholder="请选择学期" style="width: 100%">
-            <el-option label="2024春季" value="2024春季" />
-            <el-option label="2024秋季" value="2024秋季" />
-            <el-option label="2025春季" value="2025春季" />
-            <el-option label="2025秋季" value="2025秋季" />
+          <el-select v-model="formData.semester" placeholder="请选择学期" style="width: 100%" :loading="loadingSemesters">
+            <el-option
+              v-for="item in semesterList"
+              :key="item.semester_id"
+              :label="item.semester_name"
+              :value="item.semester_name"
+            />
           </el-select>
         </el-form-item>
 
@@ -103,9 +103,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { teacherAPI } from '@/services/index.js';
 
 const router = useRouter();
 
@@ -114,6 +115,12 @@ const formRef = ref(null);
 
 // 提交状态
 const submitting = ref(false);
+
+// 科目/学期列表
+const subjectList = ref([]);
+const semesterList = ref([]);
+const loadingSubjects = ref(false);
+const loadingSemesters = ref(false);
 
 // 表单数据
 const formData = reactive({
@@ -142,6 +149,37 @@ const formRules = {
   ]
 };
 
+// 加载科目列表
+const loadSubjects = async () => {
+  loadingSubjects.value = true;
+  try {
+    const res = await teacherAPI.listSubjects();
+    subjectList.value = res.subjects || [];
+  } catch (e) {
+    ElMessage.error('加载科目列表失败');
+  } finally {
+    loadingSubjects.value = false;
+  }
+};
+
+// 加载学期列表
+const loadSemesters = async () => {
+  loadingSemesters.value = true;
+  try {
+    const res = await teacherAPI.listSemesters();
+    semesterList.value = res.semesters || [];
+  } catch (e) {
+    ElMessage.error('加载学期列表失败');
+  } finally {
+    loadingSemesters.value = false;
+  }
+};
+
+onMounted(() => {
+  loadSubjects();
+  loadSemesters();
+});
+
 // 生成验证码（6位数字）
 const generateCode = () => {
   const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -165,8 +203,18 @@ const submitForm = async () => {
 
     submitting.value = true;
 
-    // TODO: 调用API创建班级
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 获取教师信息
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+
+    await teacherAPI.createClass({
+      teacher_id: teacherId,
+      class_name: formData.name,
+      subject_id: formData.subject,
+      semester: formData.semester,
+      max_students: formData.maxCount,
+      class_code: formData.code
+    });
 
     ElMessage.success('班级创建成功！2秒后自动跳转...');
 
@@ -177,7 +225,7 @@ const submitForm = async () => {
   } catch (error) {
     if (error !== false) {
       console.error('创建班级失败:', error);
-      ElMessage.error('创建班级失败');
+      ElMessage.error(typeof error === 'string' ? error : '创建班级失败');
     }
   } finally {
     submitting.value = false;

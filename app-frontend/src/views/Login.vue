@@ -304,10 +304,21 @@ const handleLogin = async () => {
 
     response = await api.post(endpoint, requestData);
 
+    // 后端返回结构为 { data: { token, user_info, message } }
+    const respData = response.data || response;
+    const token = respData.token;
+    const userInfo = respData.user_info;
+
     // 保存用户信息和token
-    localStorage.setItem('token', response.token);
+    localStorage.setItem('token', token);
     localStorage.setItem('userType', userRole.value);
-    localStorage.setItem('userInfo', JSON.stringify(response.user_info));
+    localStorage.setItem('userInfo', userInfo ? JSON.stringify(userInfo) : '{}');
+    // 存储 userId，供各页面统一使用（模仿 web 端）
+    if (userInfo) {
+      const uid = userInfo.student_id || userInfo.teacher_id || userInfo.admin_id || userInfo.id || '';
+      localStorage.setItem('userId', uid);
+      localStorage.setItem('userName', userInfo.teacher_name || userInfo.student_name || userInfo.admin_name || userInfo.name || '');
+    }
 
     showToast('登录成功！', 'success');
 

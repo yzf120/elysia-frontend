@@ -154,6 +154,24 @@ const routes = [
     component: TeacherAIChat,
     meta: { title: 'AI对话', requiresAuth: true, role: 'teacher' }
   },
+  {
+    path: '/teacher/class-management',
+    name: 'ClassManagement',
+    component: () => import('../views/teacher/ClassManagement.vue'),
+    meta: { title: '班级管理', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/class/:classId',
+    name: 'TeacherClassDetail',
+    component: () => import('../views/teacher/ClassDetail.vue'),
+    meta: { title: '班级详情', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/create-class',
+    name: 'CreateClass',
+    component: () => import('../views/teacher/CreateClass.vue'),
+    meta: { title: '创建班级', requiresAuth: true, role: 'teacher' }
+  },
   // 学生端路由
   {
     path: '/student',
@@ -212,6 +230,18 @@ const routes = [
     name: 'ProblemCode',
     component: ProblemCode,
     meta: { title: '代码作答', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/class-list',
+    name: 'StudentClassList',
+    component: () => import('../views/student/ClassList.vue'),
+    meta: { title: '我的班级', requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/class/:classId',
+    name: 'StudentClassDetail',
+    component: () => import('../views/student/ClassDetail.vue'),
+    meta: { title: '班级详情', requiresAuth: true, role: 'student' }
   }
 ];
 

@@ -1,120 +1,327 @@
 <template>
-  <div class="dashboard-page">
-    <van-nav-bar title="教师主页" />
-    
-    <div class="page-container">
-      <div class="user-card card fade-in">
-        <div class="user-avatar">👨‍🏫</div>
-        <div class="user-info">
-          <h3>{{ userInfo.name || '教师' }}</h3>
-          <p>工号：{{ userInfo.teacher_id || '-' }}</p>
-        </div>
-      </div>
+  <div class="teacher-dashboard-page">
+    <van-nav-bar title="教师主页">
+      <template #right>
+        <van-icon name="manager-o" size="20" @click="goToProfile" />
+      </template>
+    </van-nav-bar>
 
-      <div class="menu-list">
-        <van-cell-group inset>
-          <van-cell title="我的课程" icon="notes-o" is-link />
-          <van-cell title="学生管理" icon="friends-o" is-link />
-          <van-cell title="作业批改" icon="edit" is-link />
-          <van-cell title="成绩管理" icon="chart-trending-o" is-link />
-          <van-cell title="个人信息" icon="user-o" is-link />
-        </van-cell-group>
+    <!-- 欢迎卡片 -->
+    <div class="welcome-card">
+      <div class="user-avatar">👨‍🏫</div>
+      <div class="user-info">
+        <h3>{{ greeting }}，{{ teacherName }}老师</h3>
+        <p>今天也要认真教学哦！</p>
       </div>
+    </div>
 
-      <div class="logout-btn">
-        <van-button round block type="danger" @click="handleLogout">
-          退出登录
-        </van-button>
-      </div>
+    <!-- 快捷入口 -->
+    <div class="section-card">
+      <div class="section-title">快捷入口</div>
+      <van-grid :column-num="3" :border="false">
+        <van-grid-item icon="plus" text="创建班级" @click="goTo('teacher-create-class')" />
+        <van-grid-item icon="notes-o" text="课程管理" @click="goTo('teacher-course-management')" />
+        <van-grid-item icon="chat-o" text="AI对话" @click="goTo('teacher-ai-chat')" />
+      </van-grid>
+    </div>
+
+    <!-- Tab：我的班级 / 系统公告 -->
+    <div class="section-card tab-card">
+      <van-tabs v-model:active="activeTab">
+        <!-- 我的班级 -->
+        <van-tab title="我的班级" name="classes">
+          <div v-if="classLoading" class="loading-wrap">
+            <van-loading type="spinner" color="#667eea" />
+          </div>
+          <van-empty v-else-if="classList.length === 0" description="暂无班级，点击创建班级开始吧" />
+          <div v-else class="class-list">
+            <div
+              v-for="cls in classList"
+              :key="cls.classId"
+              class="class-card"
+              @click="goToClassDetail(cls.classId)"
+            >
+              <div class="class-header">
+                <span class="class-name">{{ cls.className }}</span>
+                <van-tag :type="getStatusType(cls.status)">{{ getStatusLabel(cls.status) }}</van-tag>
+              </div>
+              <div class="class-meta">
+                <span>📅 {{ cls.semester }}</span>
+                <span>👥 {{ cls.currentStudents }}/{{ cls.maxStudents }} 人</span>
+              </div>
+              <div class="class-code">验证码：<strong>{{ cls.classCode }}</strong></div>
+            </div>
+          </div>
+        </van-tab>
+
+        <!-- 系统公告 -->
+        <van-tab title="系统公告" name="announcements">
+          <van-empty v-if="announcements.length === 0" description="暂无系统公告" />
+          <div v-else class="announcement-list">
+            <div v-for="item in announcements" :key="item.id" class="announcement-item">
+              <div class="ann-title">{{ item.title }}</div>
+              <div class="ann-time">{{ formatDate(item.publishTime) }}</div>
+              <div class="ann-content">{{ item.content }}</div>
+            </div>
+          </div>
+        </van-tab>
+      </van-tabs>
+    </div>
+
+    <!-- 退出登录 -->
+    <div class="logout-wrap">
+      <van-button round block type="danger" plain @click="handleLogout">退出登录</van-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { teacherAPI } from '@/api'
 
 const router = useRouter()
-const userInfo = ref({})
+const teacherName = ref(localStorage.getItem('userName') || '教师')
+const activeTab = ref('classes')
+
+const classList = ref([])
+const classLoading = ref(false)
+const announcements = ref([])
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 6) return '凌晨好'
+  if (h < 12) return '上午好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const getStatusLabel = (status) => ({ 1: '进行中', 2: '已结束', 3: '已归档' }[status] || '未知')
+const getStatusType = (status) => ({ 1: 'success', 2: 'default', 3: 'warning' }[status] || 'default')
+
+const loadClasses = async () => {
+  classLoading.value = true
+  try {
+    const raw = localStorage.getItem('userInfo')
+    const userInfo = (raw && raw !== 'undefined' && raw !== 'null') ? JSON.parse(raw) : {}
+    const teacherId = userInfo.teacher_id || userInfo.id || localStorage.getItem('userId') || localStorage.getItem('teacherId') || ''
+    if (!teacherId) {
+      showToast({ type: 'fail', message: '未获取到教师信息，请重新登录' })
+      return
+    }
+    const res = await teacherAPI.getTeacherClasses(teacherId)
+    const classes = res.classes || []
+    classList.value = classes.map(cls => ({
+      classId: cls.class_id,
+      className: cls.class_name,
+      classCode: cls.class_code,
+      subjectName: cls.subject_name,
+      semester: cls.semester,
+      currentStudents: cls.current_students,
+      maxStudents: cls.max_students,
+      status: cls.status
+    }))
+  } catch (e) {
+    console.error('[loadClasses] 失败:', e)
+    showToast({ type: 'fail', message: '加载班级列表失败' })
+  } finally {
+    classLoading.value = false
+  }
+}
+
+const goToClassDetail = (classId) => {
+  router.push({ name: 'teacher-class-detail', params: { classId } })
+}
+
+const goTo = (name) => {
+  router.push({ name })
+}
+
+const goToProfile = () => {
+  router.push({ name: 'teacher-profile' })
+}
+
+const handleLogout = async () => {
+  showConfirmDialog({ title: '提示', message: '确定要退出登录吗？' })
+    .then(async () => {
+      try { await teacherAPI.logout() } catch {}
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+      localStorage.removeItem('userType')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('teacherId')
+      showToast({ type: 'success', message: '已退出登录' })
+      router.push('/')
+    }).catch(() => {})
+}
 
 onMounted(() => {
   const info = localStorage.getItem('userInfo')
   if (info && info !== 'undefined' && info !== 'null') {
     try {
-      userInfo.value = JSON.parse(info)
-    } catch (error) {
-      console.error('解析用户信息失败:', error)
-      userInfo.value = {}
-    }
+      const parsed = JSON.parse(info)
+      teacherName.value = parsed.teacher_name || parsed.name || localStorage.getItem('userName') || '教师'
+    } catch {}
   }
+  loadClasses()
 })
-
-const handleLogout = async () => {
-  showConfirmDialog({
-    title: '提示',
-    message: '确定要退出登录吗？'
-  }).then(async () => {
-    try {
-      await teacherAPI.logout()
-    } catch (error) {
-      console.error('退出登录失败:', error)
-    } finally {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
-      localStorage.removeItem('userType')
-      showToast({ type: 'success', message: '已退出登录' })
-      router.push('/')
-    }
-  }).catch(() => {})
-}
 </script>
 
 <style scoped>
-.dashboard-page {
+.teacher-dashboard-page {
   min-height: 100vh;
   background: #f5f5f5;
+  padding-bottom: 24px;
 }
 
-.page-container {
-  padding: 16px;
-}
-
-.user-card {
+.welcome-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  margin: 12px 16px;
+  border-radius: 14px;
+  padding: 18px 20px;
+  color: #fff;
 }
 
 .user-avatar {
-  font-size: 48px;
-  width: 64px;
-  height: 64px;
+  font-size: 40px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(255,255,255,0.2);
   border-radius: 50%;
 }
 
 .user-info h3 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .user-info p {
-  font-size: 14px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.section-card {
+  background: #fff;
+  border-radius: 14px;
+  margin: 12px 16px;
+  overflow: hidden;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  padding: 14px 16px 8px;
+}
+
+.tab-card {
+  padding-bottom: 8px;
+}
+
+.loading-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.class-list {
+  padding: 8px 12px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.class-card {
+  background: #f8f8ff;
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid #e8e8f0;
+}
+
+.class-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.class-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.class-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.class-code {
+  font-size: 13px;
   color: #666;
 }
 
-.menu-list {
-  margin-bottom: 16px;
+.class-code strong {
+  color: #667eea;
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
 }
 
-.logout-btn {
-  margin-top: 24px;
+.announcement-list {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.announcement-item {
+  background: #f8f8ff;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.ann-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.ann-time {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.ann-content {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.logout-wrap {
+  padding: 16px;
+  margin-top: 8px;
 }
 </style>

@@ -64,6 +64,9 @@ const handleLogout = async () => {
       localStorage.removeItem('token')
       localStorage.removeItem('userInfo')
       localStorage.removeItem('userType')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('teacherId')
       showToast({ type: 'success', message: '已退出登录' })
       router.push('/')
     }
