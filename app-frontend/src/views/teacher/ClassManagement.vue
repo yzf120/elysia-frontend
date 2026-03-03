@@ -230,7 +230,24 @@ const loadClasses = async () => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const teacherId = userInfo.teacher_id || userInfo.id || '';
     const res = await teacherAPI.getTeacherClasses(teacherId);
-    classList.value = res.classes || [];
+    const classes = res.classes || [];
+    // 按学期时间倒序排列
+    classes.sort((a, b) => {
+      const sa = a.semester || '';
+      const sb = b.semester || '';
+      return sb.localeCompare(sa);
+    });
+    classList.value = classes.map(cls => ({
+      classId: cls.class_id,
+      className: cls.class_name,
+      classCode: cls.class_code,
+      semester: cls.semester,
+      currentStudents: cls.current_students,
+      maxStudents: cls.max_students,
+      status: cls.status,
+      description: cls.description || '',
+      createTime: cls.created_at ? cls.created_at.slice(0, 10) : ''
+    }));
   } catch (error) {
     showToast({ type: 'fail', message: '加载班级列表失败' });
   } finally {

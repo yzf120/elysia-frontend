@@ -177,18 +177,91 @@
               </template>
             </van-grid-item>
             <van-grid-item
-              icon="calendar-o"
-              text="学习方案"
-              @click="goToStudyPlan"
+              icon="add-o"
+              text="加入班级"
+              @click="openJoinClassDialog"
             >
               <template #icon>
                 <div class="grid-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                  <van-icon name="calendar-o" size="24" color="#fff" />
+                  <van-icon name="add-o" size="24" color="#fff" />
                 </div>
               </template>
             </van-grid-item>
           </van-grid>
         </div>
+
+        <!-- 加入班级弹窗 -->
+        <van-popup
+          v-model:show="joinClassVisible"
+          round
+          position="bottom"
+          :style="{ padding: '20px', minHeight: '40%' }"
+        >
+          <div class="join-class-popup">
+            <h3 class="popup-title">加入班级</h3>
+
+            <!-- 输入验证码 -->
+            <div v-if="joinStep === 'input'">
+              <van-field
+                v-model="classCode"
+                label="班级验证码"
+                placeholder="请输入6位班级验证码"
+                clearable
+                maxlength="6"
+                :error-message="classCodeError"
+              />
+              <div class="popup-actions">
+                <van-button
+                  type="primary"
+                  block
+                  round
+                  :loading="queryLoading"
+                  @click="queryClassByCode"
+                >
+                  查询班级
+                </van-button>
+              </div>
+            </div>
+
+            <!-- 展示班级信息 -->
+            <div v-else-if="joinStep === 'confirm'">
+              <div class="class-info-card">
+                <div class="info-row">
+                  <span class="info-label">班级名称</span>
+                  <span class="info-value">{{ classInfo.class_name }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">科目</span>
+                  <span class="info-value">{{ classInfo.subject }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">教师</span>
+                  <span class="info-value">{{ classInfo.teacher_name }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">学期</span>
+                  <span class="info-value">{{ classInfo.semester }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">人数</span>
+                  <span class="info-value">{{ classInfo.current_students }} / {{ classInfo.max_students }}</span>
+                </div>
+              </div>
+              <div class="popup-actions">
+                <van-button plain type="default" round @click="joinStep = 'input'" style="margin-bottom: 10px;">重新输入</van-button>
+                <van-button
+                  type="primary"
+                  block
+                  round
+                  :loading="joinLoading"
+                  @click="confirmJoinClass"
+                >
+                  确认加入
+                </van-button>
+              </div>
+            </div>
+          </div>
+        </van-popup>
       </div>
     </van-pull-refresh>
   </div>
@@ -198,6 +271,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { studentAPI } from '@/api/index'
 
 const router = useRouter()
 
@@ -488,9 +562,61 @@ const goToCollection = () => {
   router.push('/student/session-collection')
 }
 
-// 跳转到学习方案
-const goToStudyPlan = () => {
-  router.push('/student/study-plan')
+// 加入班级相关
+const joinClassVisible = ref(false)
+const joinStep = ref('input') // 'input' | 'confirm'
+const classCode = ref('')
+const classCodeError = ref('')
+const classInfo = ref({})
+const queryLoading = ref(false)
+const joinLoading = ref(false)
+
+const openJoinClassDialog = () => {
+  joinClassVisible.value = true
+  joinStep.value = 'input'
+  classCode.value = ''
+  classCodeError.value = ''
+  classInfo.value = {}
+}
+
+const queryClassByCode = async () => {
+  if (!classCode.value || classCode.value.trim().length === 0) {
+    classCodeError.value = '请输入班级验证码'
+    return
+  }
+  classCodeError.value = ''
+  queryLoading.value = true
+  try {
+    const res = await studentAPI.getClassByCode(classCode.value.trim().toUpperCase())
+    if (res && res.class) {
+      classInfo.value = res.class
+      joinStep.value = 'confirm'
+    } else {
+      classCodeError.value = '班级不存在，请检查验证码'
+    }
+  } catch (err) {
+    classCodeError.value = '班级不存在，请检查验证码'
+  } finally {
+    queryLoading.value = false
+  }
+}
+
+const confirmJoinClass = async () => {
+  const studentId = localStorage.getItem('userId') || localStorage.getItem('studentId')
+  if (!studentId) {
+    showToast('获取学生信息失败，请重新登录')
+    return
+  }
+  joinLoading.value = true
+  try {
+    await studentAPI.joinClass(studentId, classCode.value.trim().toUpperCase())
+    showToast('加入班级成功！')
+    joinClassVisible.value = false
+  } catch (err) {
+    showToast(typeof err === 'string' ? err : '加入班级失败')
+  } finally {
+    joinLoading.value = false
+  }
 }
 
 // 页面加载时获取数据
@@ -675,5 +801,55 @@ onMounted(() => {
 :deep(.van-tab--active) {
   color: #667eea;
   font-weight: 600;
+}
+
+/* 加入班级弹窗 */
+.join-class-popup {
+  padding: 8px 4px 16px;
+}
+
+.popup-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+  text-align: center;
+  margin: 0 0 20px 0;
+}
+
+.class-info-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 14px;
+  color: #909399;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+  text-align: right;
+}
+
+.popup-actions {
+  padding: 0 4px;
 }
 </style>

@@ -178,21 +178,7 @@ const loadChapters = async () => {
   chaptersLoading.value = true
   try {
     // TODO: 调用API获取章节列表
-    chapterTree.value = [
-      {
-        id: 1, label: '第一章 基础入门', type: 'folder',
-        children: [
-          { id: 11, label: '1.1 简介', type: 'video' },
-          { id: 12, label: '1.2 变量与类型', type: 'pdf' }
-        ]
-      },
-      {
-        id: 2, label: '第二章 控制流程', type: 'folder',
-        children: [
-          { id: 21, label: '2.1 条件语句', type: 'video' }
-        ]
-      }
-    ]
+    chapterTree.value = []
   } catch (e) {
     showToast({ type: 'fail', message: '加载章节失败' })
   } finally {

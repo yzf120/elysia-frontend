@@ -228,6 +228,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { teacherAPI } from '@/services/index';
 
 const router = useRouter();
 const route = useRoute();
@@ -292,15 +293,20 @@ const getTaskTypeColor = (type) => {
 const loadClassInfo = async () => {
   try {
     const classId = route.params.id;
-    // TODO: 调用API获取班级信息
-    // 模拟数据
-    classInfo.value = {
-      id: classId,
-      name: '2024春季Python编程班',
-      subject: 'Python编程',
-      semester: '2024春季',
-      code: '123456'
-    };
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+    const res = await teacherAPI.getTeacherClasses(teacherId);
+    const classes = res.classes || [];
+    const found = classes.find(c => String(c.class_id) === String(classId));
+    if (found) {
+      classInfo.value = {
+        id: found.class_id,
+        name: found.class_name,
+        subject: found.subject || found.subject_name,
+        semester: found.semester,
+        code: found.class_code
+      };
+    }
   } catch (error) {
     console.error('加载班级信息失败:', error);
     ElMessage.error('加载班级信息失败');
@@ -310,32 +316,16 @@ const loadClassInfo = async () => {
 // 加载班级成员
 const loadMembers = async () => {
   try {
-    // TODO: 调用API获取班级成员
-    // 模拟数据
-    memberList.value = [
-      {
-        id: 1,
-        name: '张三',
-        studentId: '2021001',
-        email: 'zhangsan@example.com',
-        joinTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        name: '李四',
-        studentId: '2021002',
-        email: 'lisi@example.com',
-        joinTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        name: '王五',
-        studentId: '2021003',
-        email: 'wangwu@example.com',
-        joinTime: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
-    memberTotal.value = memberList.value.length;
+    const classId = route.params.id;
+    const res = await teacherAPI.getClassMembers(classId, memberPage.value, 50);
+    memberList.value = (res.members || []).map(m => ({
+      id: m.student_id,
+      name: m.student_name || m.student_id,
+      studentId: m.student_number || m.student_id,
+      email: m.email || '',
+      joinTime: m.join_time
+    }));
+    memberTotal.value = res.total || memberList.value.length;
   } catch (error) {
     console.error('加载班级成员失败:', error);
     ElMessage.error('加载班级成员失败');
@@ -351,7 +341,9 @@ const removeMember = async (memberId) => {
       type: 'warning'
     });
 
-    // TODO: 调用API移除成员
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+    await teacherAPI.removeStudent(teacherId, route.params.id, memberId);
     ElMessage.success('移除成功');
     loadMembers();
   } catch (error) {

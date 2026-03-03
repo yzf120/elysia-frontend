@@ -75,68 +75,6 @@
           </div>
         </el-tab-pane>
 
-        <!-- 待处理Tab -->
-        <el-tab-pane label="待处理" name="pending">
-          <div class="pending-section">
-            <!-- 待审核学生申请 -->
-            <div class="pending-card">
-              <div class="pending-header">
-                <h3>
-                  <el-icon><UserFilled /></el-icon>
-                  待审核学生申请
-                </h3>
-                <el-badge :value="pendingStudents.length" :max="99" />
-              </div>
-              <div v-if="pendingStudents.length === 0" class="empty-pending">
-                暂无待审核申请
-              </div>
-              <div v-else class="pending-list">
-                <div v-for="item in pendingStudents" :key="item.id" class="pending-item">
-                  <div class="pending-info">
-                    <span class="student-name">{{ item.studentName }}</span>
-                    <span class="class-name">申请加入：{{ item.className }}</span>
-                  </div>
-                  <div class="pending-actions">
-                    <el-button type="success" size="small" @click="approveStudent(item.id)">
-                      通过
-                    </el-button>
-                    <el-button type="danger" size="small" @click="rejectStudent(item.id)">
-                      拒绝
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- AI生成内容待确认 -->
-            <div class="pending-card">
-              <div class="pending-header">
-                <h3>
-                  <el-icon><Document /></el-icon>
-                  AI生成内容待确认
-                </h3>
-                <el-badge :value="pendingAIContent.length" :max="99" />
-              </div>
-              <div v-if="pendingAIContent.length === 0" class="empty-pending">
-                暂无待确认内容
-              </div>
-              <div v-else class="pending-list">
-                <div v-for="item in pendingAIContent" :key="item.id" class="pending-item">
-                  <div class="pending-info">
-                    <span class="content-type">{{ item.type }}</span>
-                    <span class="content-title">{{ item.title }}</span>
-                  </div>
-                  <div class="pending-actions">
-                    <el-button type="primary" size="small" @click="reviewAIContent(item.id)">
-                      查看
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-
         <!-- 系统公告Tab -->
         <el-tab-pane label="系统公告" name="announcements">
           <div v-if="announcements.length === 0" class="teacher-empty">
@@ -196,12 +134,12 @@
           <div class="card-desc">创建新的教学班级</div>
         </div>
 
-        <div class="teacher-access-card" @click="goToCourseManagement">
+        <div class="teacher-access-card" @click="goToClassManagement">
           <div class="card-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
             <el-icon :size="28"><Reading /></el-icon>
           </div>
-          <div class="card-title">课程管理</div>
-          <div class="card-desc">管理课程章节内容</div>
+          <div class="card-title">班级管理</div>
+          <div class="card-desc">查看和管理已创建班级</div>
         </div>
 
         <div class="teacher-access-card" @click="goToAIChat">
@@ -236,12 +174,6 @@ const activeTab = ref('classes');
 const classList = ref([]);
 const classPage = ref(1);
 const classTotal = ref(0);
-
-// 待审核学生申请
-const pendingStudents = ref([]);
-
-// AI生成内容待确认
-const pendingAIContent = ref([]);
 
 // 系统公告数据
 const announcements = ref([]);
@@ -293,50 +225,6 @@ const loadClassList = async () => {
   }
 };
 
-// 加载待审核学生申请
-const loadPendingStudents = async () => {
-  try {
-    // TODO: 调用API获取待审核学生申请
-    // 模拟数据
-    pendingStudents.value = [
-      {
-        id: 1,
-        studentName: '张三',
-        className: '2024春季Python编程班'
-      },
-      {
-        id: 2,
-        studentName: '李四',
-        className: '2024春季数据结构班'
-      }
-    ];
-  } catch (error) {
-    console.error('加载待审核学生申请失败:', error);
-  }
-};
-
-// 加载AI生成内容待确认
-const loadPendingAIContent = async () => {
-  try {
-    // TODO: 调用API获取AI生成内容待确认
-    // 模拟数据
-    pendingAIContent.value = [
-      {
-        id: 1,
-        type: 'AI出题',
-        title: 'Python基础知识测试题'
-      },
-      {
-        id: 2,
-        type: 'AI教学资料',
-        title: '数据结构-栈与队列'
-      }
-    ];
-  } catch (error) {
-    console.error('加载AI生成内容待确认失败:', error);
-  }
-};
-
 // 加载系统公告
 const loadAnnouncements = async () => {
   try {
@@ -385,44 +273,6 @@ const deleteClass = async (classId) => {
   }
 };
 
-// 审核学生申请 - 通过
-const approveStudent = async (id) => {
-  try {
-    // TODO: 调用API通过学生申请
-    ElMessage.success('已通过该学生的申请');
-    loadPendingStudents();
-  } catch (error) {
-    console.error('审核失败:', error);
-    ElMessage.error('审核失败');
-  }
-};
-
-// 审核学生申请 - 拒绝
-const rejectStudent = async (id) => {
-  try {
-    await ElMessageBox.confirm('确定要拒绝该学生的申请吗？', '确认拒绝', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-
-    // TODO: 调用API拒绝学生申请
-    ElMessage.success('已拒绝该学生的申请');
-    loadPendingStudents();
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('拒绝失败:', error);
-      ElMessage.error('拒绝失败');
-    }
-  }
-};
-
-// 查看AI生成内容
-const reviewAIContent = (id) => {
-  // TODO: 跳转到AI内容审核页面
-  ElMessage.info('功能开发中...');
-};
-
 // 跳转到班级详情
 const goToClassDetail = (classId) => {
   router.push({ name: 'ClassDetail', params: { id: classId } });
@@ -438,19 +288,14 @@ const goToCreateClass = () => {
   router.push({ name: 'CreateClass' });
 };
 
-// 跳转到课程管理
-const goToCourseManagement = () => {
-  router.push({ name: 'CourseManagement' });
+// 跳转到班级管理
+const goToClassManagement = () => {
+  router.push({ name: 'ClassManagement' });
 };
 
 // 跳转到AI对话
 const goToAIChat = () => {
   router.push({ name: 'TeacherAIChat' });
-};
-
-// 跳转到代码审核
-const goToCodeReview = () => {
-  router.push({ name: 'CodeReview' });
 };
 
 // 页面加载时获取数据
@@ -466,8 +311,6 @@ onMounted(() => {
     teacherName.value = localStorage.getItem('userName') || '教师'
   }
   loadClassList();
-  loadPendingStudents();
-  loadPendingAIContent();
   loadAnnouncements();
 });
 </script>
@@ -476,90 +319,6 @@ onMounted(() => {
 @import '@/styles/teacher.css';
 
 .teacher-dashboard {
-  // 待处理区域
-  .pending-section {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 20px;
-
-    .pending-card {
-      background: var(--teacher-card-bg);
-      border: 1px solid var(--teacher-border);
-      border-radius: 10px;
-      padding: 20px;
-
-      .pending-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid var(--teacher-border);
-
-        h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--teacher-text-primary);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-      }
-
-      .empty-pending {
-        padding: 40px 0;
-        text-align: center;
-        color: var(--teacher-text-secondary);
-        font-size: 14px;
-      }
-
-      .pending-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-
-        .pending-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px;
-          background: var(--teacher-bg);
-          border-radius: 8px;
-          transition: all 0.3s ease;
-
-          &:hover {
-            background: rgba(30, 58, 138, 0.05);
-          }
-
-          .pending-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-
-            .student-name,
-            .content-type {
-              font-size: 15px;
-              font-weight: 600;
-              color: var(--teacher-text-primary);
-            }
-
-            .class-name,
-            .content-title {
-              font-size: 13px;
-              color: var(--teacher-text-secondary);
-            }
-          }
-
-          .pending-actions {
-            display: flex;
-            gap: 8px;
-          }
-        }
-      }
-    }
-  }
-
   // 公告列表
   .announcement-list {
     display: flex;

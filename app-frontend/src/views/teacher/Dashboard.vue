@@ -20,7 +20,7 @@
       <div class="section-title">快捷入口</div>
       <van-grid :column-num="3" :border="false">
         <van-grid-item icon="plus" text="创建班级" @click="goTo('teacher-create-class')" />
-        <van-grid-item icon="notes-o" text="课程管理" @click="goTo('teacher-course-management')" />
+        <van-grid-item icon="notes-o" text="班级管理" @click="goTo('teacher-class-management')" />
         <van-grid-item icon="chat-o" text="AI对话" @click="goTo('teacher-ai-chat')" />
       </van-grid>
     </div>

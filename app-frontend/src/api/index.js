@@ -190,7 +190,15 @@ export const studentAPI = {
 
   // 查询代码运行结果（轮询）
   getCodeRunResult: (runId) =>
-    api.get('/student/code/result', { params: { run_id: runId } })
+    api.get('/student/code/result', { params: { run_id: runId } }),
+
+  // 根据验证码查询班级信息
+  getClassByCode: (classCode) =>
+    api.get('/class/get-by-code', { params: { class_code: classCode } }),
+
+  // 加入班级
+  joinClass: (studentId, classCode) =>
+    api.post('/student/class/join', { student_id: studentId, class_code: classCode })
 }
 
 export default api

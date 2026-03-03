@@ -200,15 +200,60 @@
           <div class="card-desc">管理收藏的会话</div>
         </div>
 
-        <div class="access-card" @click="goToStudyPlan">
+        <div class="access-card" @click="openJoinClassDialog">
           <div class="card-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-            <el-icon :size="32"><Calendar /></el-icon>
+            <el-icon :size="32"><CirclePlus /></el-icon>
           </div>
-          <div class="card-title">学习方案</div>
-          <div class="card-desc">AI生成学习计划</div>
+          <div class="card-title">加入班级</div>
+          <div class="card-desc">输入验证码加入班级</div>
         </div>
       </div>
     </div>
+
+    <!-- 加入班级对话框 -->
+    <el-dialog
+      v-model="joinClassVisible"
+      title="加入班级"
+      width="480px"
+      :close-on-click-modal="false"
+    >
+      <!-- 输入验证码步骤 -->
+      <div v-if="joinStep === 'input'">
+        <el-form :model="joinForm" label-width="100px">
+          <el-form-item label="班级验证码">
+            <el-input
+              v-model="joinForm.classCode"
+              placeholder="请输入6位班级验证码"
+              maxlength="6"
+              clearable
+              @keyup.enter="queryClassByCode"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 班级信息展示步骤 -->
+      <div v-else-if="joinStep === 'confirm'">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="班级名称">{{ classInfo.class_name }}</el-descriptions-item>
+          <el-descriptions-item label="科目">{{ classInfo.subject }}</el-descriptions-item>
+          <el-descriptions-item label="教师">{{ classInfo.teacher_name }}</el-descriptions-item>
+          <el-descriptions-item label="学期">{{ classInfo.semester }}</el-descriptions-item>
+          <el-descriptions-item label="班级人数">{{ classInfo.current_students }} / {{ classInfo.max_students }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <template #footer>
+        <div v-if="joinStep === 'input'">
+          <el-button @click="joinClassVisible = false">取消</el-button>
+          <el-button type="primary" :loading="queryLoading" @click="queryClassByCode">查询班级</el-button>
+        </div>
+        <div v-else-if="joinStep === 'confirm'">
+          <el-button @click="joinStep = 'input'">重新输入</el-button>
+          <el-button type="primary" :loading="joinLoading" @click="confirmJoinClass">确认加入</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -216,6 +261,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { studentAPI } from '@/services/index';
+import { User, Clock, Reading, Bell, DocumentChecked, ChatDotRound, DocumentCopy, Star, CirclePlus } from '@element-plus/icons-vue';
 
 const router = useRouter();
 
@@ -392,9 +439,58 @@ const goToCollection = () => {
   router.push({ name: 'SessionCollection' });
 };
 
-// 跳转到学习方案
-const goToStudyPlan = () => {
-  router.push({ name: 'StudyPlan' });
+// 加入班级相关
+const joinClassVisible = ref(false);
+const joinStep = ref('input'); // 'input' | 'confirm'
+const joinForm = ref({ classCode: '' });
+const classInfo = ref({});
+const queryLoading = ref(false);
+const joinLoading = ref(false);
+
+const openJoinClassDialog = () => {
+  joinClassVisible.value = true;
+  joinStep.value = 'input';
+  joinForm.value.classCode = '';
+  classInfo.value = {};
+};
+
+const queryClassByCode = async () => {
+  if (!joinForm.value.classCode || joinForm.value.classCode.trim().length === 0) {
+    ElMessage.warning('请输入班级验证码');
+    return;
+  }
+  queryLoading.value = true;
+  try {
+    const res = await studentAPI.getClassByCode(joinForm.value.classCode.trim().toUpperCase());
+    if (res && res.class) {
+      classInfo.value = res.class;
+      joinStep.value = 'confirm';
+    } else {
+      ElMessage.error('班级不存在，请检查验证码');
+    }
+  } catch (err) {
+    ElMessage.error('班级不存在，请检查验证码');
+  } finally {
+    queryLoading.value = false;
+  }
+};
+
+const confirmJoinClass = async () => {
+  const studentId = localStorage.getItem('userId') || localStorage.getItem('studentId');
+  if (!studentId) {
+    ElMessage.error('获取学生信息失败，请重新登录');
+    return;
+  }
+  joinLoading.value = true;
+  try {
+    await studentAPI.joinClass(studentId, joinForm.value.classCode.trim().toUpperCase());
+    ElMessage.success('加入班级成功！');
+    joinClassVisible.value = false;
+  } catch (err) {
+    ElMessage.error(typeof err === 'string' ? err : '加入班级失败');
+  } finally {
+    joinLoading.value = false;
+  }
 };
 
 // 页面加载时获取数据

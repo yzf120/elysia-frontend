@@ -116,7 +116,19 @@ export const teacherAPI = {
 
   // 删除班级
   deleteClass: (teacherId, classId) =>
-    api.post('/teacher/class/delete', { teacher_id: teacherId, class_id: classId })
+    api.post('/teacher/class/delete', { teacher_id: teacherId, class_id: classId }),
+
+  // 查询班级成员
+  getClassMembers: (classId, page = 1, pageSize = 20) =>
+    api.post('/class/members', { class_id: classId, page, page_size: pageSize }),
+
+  // 移除学生
+  removeStudent: (teacherId, classId, studentId) =>
+    api.post('/teacher/class/remove-student', { teacher_id: teacherId, class_id: classId, student_id: studentId }),
+
+  // 更新班级信息
+  updateClass: (teacherId, classId, data) =>
+    api.post('/teacher/class/update', { teacher_id: teacherId, class_id: classId, ...data })
 };
 
 // ==================== 学生接口 ====================
@@ -152,7 +164,15 @@ export const studentAPI = {
 
   // 查询学生已加入的班级列表
   getStudentClasses: (studentId, page = 1, pageSize = 50) =>
-    api.post('/class/student-classes', { student_id: studentId, page, page_size: pageSize })
+    api.post('/class/student-classes', { student_id: studentId, page, page_size: pageSize }),
+
+  // 根据验证码查询班级信息
+  getClassByCode: (classCode) =>
+    api.get('/class/get-by-code', { params: { class_code: classCode } }),
+
+  // 加入班级
+  joinClass: (studentId, classCode) =>
+    api.post('/student/class/join', { student_id: studentId, class_code: classCode })
 };
 
 export default api;
