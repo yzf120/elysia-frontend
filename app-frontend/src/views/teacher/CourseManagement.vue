@@ -24,7 +24,7 @@
                 <span class="chapter-title">{{ chapter.label }}</span>
                 <div class="chapter-actions">
                   <van-button size="mini" type="primary" plain @click="editChapter(chapter)">编辑</van-button>
-                  <van-button size="mini" type="danger" plain @click="deleteChapter(chapter.id)">删除</van-button>
+                  <van-button size="mini" type="danger" plain @click="deleteChapter(chapter.id, chapter)">删除</van-button>
                 </div>
               </div>
               <div v-if="chapter.children && chapter.children.length" class="sub-chapters">
@@ -35,7 +35,7 @@
                   <span class="sub-label">{{ sub.label }}</span>
                   <div class="chapter-actions">
                     <van-button size="mini" type="primary" plain @click="editChapter(sub)">编辑</van-button>
-                    <van-button size="mini" type="danger" plain @click="deleteChapter(sub.id)">删除</van-button>
+                    <van-button size="mini" type="danger" plain @click="deleteChapter(sub.id, sub)">删除</van-button>
                   </div>
                 </div>
               </div>
@@ -143,11 +143,18 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
+import { teacherAPI } from '@/api/index.js'
 
 const router = useRouter()
+const route = useRoute()
 const activeTab = ref('chapters')
+
+// 当前班级ID（从路由 query 传入）
+const classId = ref(route.query.class_id || '')
+// 当前教师ID
+const teacherId = ref(localStorage.getItem('userId') || '')
 
 // 章节
 const chapterTree = ref([])
@@ -174,11 +181,35 @@ const difficultyOptions = [
   { text: '困难', value: '困难' }
 ]
 
+// 将后端章节数据映射为树形结构
+const mapChaptersToTree = (chapters) => {
+  return (chapters || []).map(chap => ({
+    id: chap.chapter_id,
+    label: chap.title,
+    description: chap.description,
+    sort_order: chap.sort_order,
+    type: 'folder',
+    children: (chap.sections || []).map(sec => ({
+      id: sec.section_id,
+      label: sec.title,
+      description: sec.description,
+      section_type: sec.section_type,
+      sort_order: sec.sort_order,
+      type: sec.section_type === 1 ? 'problem' : 'discussion',
+      parentId: chap.chapter_id
+    }))
+  }))
+}
+
 const loadChapters = async () => {
+  if (!classId.value) {
+    showToast({ type: 'fail', message: '缺少班级ID，无法加载章节' })
+    return
+  }
   chaptersLoading.value = true
   try {
-    // TODO: 调用API获取章节列表
-    chapterTree.value = []
+    const res = await teacherAPI.getClassChapters(classId.value)
+    chapterTree.value = mapChaptersToTree(res.data?.chapters)
   } catch (e) {
     showToast({ type: 'fail', message: '加载章节失败' })
   } finally {
@@ -202,18 +233,35 @@ const saveChapter = async (action) => {
     showToast({ type: 'fail', message: '请输入章节名称' })
     return false
   }
-  // TODO: 调用API保存章节
-  showToast({ type: 'success', message: editingChapter.value ? '修改成功' : '新增成功' })
-  editingChapter.value = null
-  chapterForm.value = { id: null, name: '' }
-  loadChapters()
-  return true
+  try {
+    if (editingChapter.value) {
+      // 编辑章节
+      await teacherAPI.updateChapter(teacherId.value, chapterForm.value.id, chapterForm.value.name, '')
+    } else {
+      // 新增章节
+      await teacherAPI.createChapter(teacherId.value, classId.value, chapterForm.value.name, '')
+    }
+    showToast({ type: 'success', message: editingChapter.value ? '修改成功' : '新增成功' })
+    editingChapter.value = null
+    chapterForm.value = { id: null, name: '' }
+    loadChapters()
+    return true
+  } catch (e) {
+    showToast({ type: 'fail', message: '保存失败' })
+    return false
+  }
 }
 
-const deleteChapter = async (id) => {
+const deleteChapter = async (id, data) => {
   try {
-    await showConfirmDialog({ title: '确认删除', message: '确定要删除该章节吗？' })
-    // TODO: 调用API删除章节
+    await showConfirmDialog({ title: '确认删除', message: '确定要删除吗？' })
+    if (data && data.parentId) {
+      // 删除小节
+      await teacherAPI.deleteSection(teacherId.value, id)
+    } else {
+      // 删除章节
+      await teacherAPI.deleteChapter(teacherId.value, id)
+    }
     showToast({ type: 'success', message: '删除成功' })
     loadChapters()
   } catch {}

@@ -93,51 +93,51 @@
           <h3>课程目录</h3>
         </div>
 
-        <van-collapse v-model="activeChapters" accordion>
+        <div v-if="chaptersLoading" style="text-align:center;padding:40px 0;">
+          <van-loading size="24px">加载中...</van-loading>
+        </div>
+
+        <div v-else-if="courseChapters.length === 0" class="empty-wrap">
+          <van-empty description="暂无课程内容" />
+        </div>
+
+        <van-collapse v-else v-model="activeChapters" accordion>
           <van-collapse-item
             v-for="chapter in courseChapters"
-            :key="chapter.id"
-            :name="chapter.id"
+            :key="chapter.chapter_id"
+            :name="chapter.chapter_id"
           >
             <template #title>
               <div class="chapter-title">
                 <van-icon name="bookmark-o" color="#667eea" />
                 <span>{{ chapter.title }}</span>
-                <van-badge :content="chapter.problems.length" color="#667eea" style="margin-left:auto" />
+                <van-badge :content="chapter.sections ? chapter.sections.length : 0" color="#667eea" style="margin-left:auto" />
               </div>
             </template>
 
             <div class="problem-list">
               <div
-                v-for="problem in chapter.problems"
-                :key="problem.id"
+                v-for="section in chapter.sections"
+                :key="section.section_id"
                 class="problem-item"
-                @click="viewProblem(problem)"
+                @click="viewSection(section)"
               >
                 <div class="problem-left">
-                  <div class="problem-difficulty" :class="'diff-' + problem.difficulty">
-                    {{ difficultyLabel(problem.difficulty) }}
+                  <div class="problem-difficulty" :class="section.section_type === 1 ? 'diff-problem' : 'diff-discuss'">
+                    {{ section.section_type === 1 ? '算法题' : '讨论' }}
                   </div>
                   <div class="problem-info">
-                    <div class="problem-title">{{ problem.title }}</div>
-                    <div class="problem-tags">
-                      <van-tag
-                        v-for="tag in problem.tags"
-                        :key="tag"
-                        size="mini"
-                        plain
-                        type="primary"
-                        style="margin-right:4px"
-                      >{{ tag }}</van-tag>
+                    <div class="problem-title">{{ section.title }}</div>
+                    <div v-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
+                      {{ section.description }}
                     </div>
                   </div>
                 </div>
                 <div class="problem-right">
-                  <van-icon v-if="problem.solved" name="checked" color="#67c23a" size="18" />
-                  <van-icon v-else name="circle" color="#c8c9cc" size="18" />
                   <van-icon name="arrow" color="#c8c9cc" size="14" style="margin-left:4px" />
                 </div>
               </div>
+              <div v-if="!chapter.sections || chapter.sections.length === 0" style="padding:12px 16px;color:#bbb;font-size:13px;text-align:center">暂无小节</div>
             </div>
           </van-collapse-item>
         </van-collapse>
@@ -243,6 +243,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { studentAPI } from '@/api/index.js'
+import { showToast } from 'vant'
 
 const router = useRouter()
 
@@ -307,22 +308,49 @@ onMounted(() => {
 })
 
 const courseChapters = ref([])
+const chaptersLoading = ref(false)
 
 // 进入班级
-const enterClass = (cls) => {
+const enterClass = async (cls) => {
   currentClass.value = cls
   courseChapters.value = []
   activeChapters.value = ''
   currentView.value = 'catalog'
+  // 加载章节列表
+  chaptersLoading.value = true
+  try {
+    const res = await studentAPI.getClassChapters(cls.id)
+    courseChapters.value = res?.data?.chapters || res?.chapters || []
+  } catch (e) {
+    showToast({ type: 'fail', message: '加载章节失败' })
+  } finally {
+    chaptersLoading.value = false
+  }
 }
 
-// 查看题目详情
+// 查看小节（算法题直接跳转，讨论暂时提示）
+const viewSection = (section) => {
+  if (section.section_type === 1) {
+    if (!section.problem_id) {
+      showToast({ type: 'text', message: '题目暂未关联' })
+      return
+    }
+    router.push({
+      name: 'student-problem-code',
+      params: { problemId: section.problem_id }
+    })
+  } else {
+    showToast({ type: 'text', message: '讨论功能即将上线' })
+  }
+}
+
+// 查看题目详情（保留兼容）
 const viewProblem = (problem) => {
   currentProblem.value = problem
   showProblemDetail.value = true
 }
 
-// 难度标签
+// 难度标签（保留兼容）
 const difficultyLabel = (diff) => {
   const map = { easy: '简单', medium: '中等', hard: '困难' }
   return map[diff] || diff
@@ -503,6 +531,8 @@ const goToSubmit = () => {
 .diff-easy { background: #e8f5e9; color: #4caf50; }
 .diff-medium { background: #fff3e0; color: #ff9800; }
 .diff-hard { background: #fce4ec; color: #e91e63; }
+.diff-problem { background: #e8f0fe; color: #667eea; }
+.diff-discuss { background: #fff3e0; color: #ff9800; }
 
 .problem-info {
   flex: 1;

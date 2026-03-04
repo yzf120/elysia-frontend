@@ -128,7 +128,57 @@ export const teacherAPI = {
 
   // 更新班级信息
   updateClass: (teacherId, classId, data) =>
-    api.post('/teacher/class/update', { teacher_id: teacherId, class_id: classId, ...data })
+    api.post('/teacher/class/update', { teacher_id: teacherId, class_id: classId, ...data }),
+
+  // ---- 章节管理 ----
+  // 查询班级章节列表（含小节，师生共用）
+  getClassChapters: (classId) =>
+    api.post('/class/chapters', { class_id: classId }),
+
+  // 创建章节
+  createChapter: (teacherId, classId, title, description) =>
+    api.post('/teacher/chapter/create', { teacher_id: teacherId, class_id: classId, title, description }),
+
+  // 更新章节
+  updateChapter: (teacherId, chapterId, title, description) =>
+    api.post('/teacher/chapter/update', { teacher_id: teacherId, chapter_id: chapterId, title, description }),
+
+  // 删除章节
+  deleteChapter: (teacherId, chapterId) =>
+    api.post('/teacher/chapter/delete', { teacher_id: teacherId, chapter_id: chapterId }),
+
+  // 调整章节排序
+  reorderChapters: (teacherId, classId, orders) =>
+    api.post('/teacher/chapter/reorder', { teacher_id: teacherId, class_id: classId, orders }),
+
+  // 创建小节
+  createSection: (teacherId, chapterId, data) =>
+    api.post('/teacher/section/create', { teacher_id: teacherId, chapter_id: chapterId, ...data }),
+
+  // 更新小节
+  updateSection: (teacherId, sectionId, title, description, refId) =>
+    api.post('/teacher/section/update', { teacher_id: teacherId, section_id: sectionId, title, description, ref_id: refId }),
+
+  // 删除小节
+  deleteSection: (teacherId, sectionId) =>
+    api.post('/teacher/section/delete', { teacher_id: teacherId, section_id: sectionId }),
+
+  // 调整小节排序
+  reorderSections: (teacherId, chapterId, orders) =>
+    api.post('/teacher/section/reorder', { teacher_id: teacherId, chapter_id: chapterId, orders }),
+
+  // ---- 公告管理 ----
+  // 发布公告（仅教师）
+  publishAnnouncement: (teacherId, classId, title, content) =>
+    api.post('/teacher/class/announcement/publish', { teacher_id: teacherId, class_id: classId, title, content }),
+
+  // 删除公告（仅教师）
+  deleteAnnouncement: (teacherId, classId, announcementId) =>
+    api.post('/teacher/class/announcement/delete', { teacher_id: teacherId, class_id: classId, announcement_id: announcementId }),
+
+  // 查询公告列表（师生共用）
+  getAnnouncements: (classId) =>
+    api.post('/class/announcements', { class_id: classId })
 };
 
 // ==================== 学生接口 ====================
@@ -173,6 +223,17 @@ export const studentAPI = {
   // 加入班级
   joinClass: (studentId, classCode) =>
     api.post('/student/class/join', { student_id: studentId, class_code: classCode })
+};
+
+// ==================== 题库接口 ====================
+export const problemAPI = {
+  // 查询题库列表（支持关键词搜索和难度筛选）
+  listProblems: (keyword = '', difficulty = '', page = 1, pageSize = 20) =>
+    api.get('/problem/list', { params: { keyword, difficulty, page, page_size: pageSize } }),
+
+  // 查询单题详情
+  getProblem: (id) =>
+    api.get('/problem/get', { params: { id } })
 };
 
 export default api;

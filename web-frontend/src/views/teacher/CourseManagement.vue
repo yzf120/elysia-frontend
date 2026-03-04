@@ -45,7 +45,7 @@
                   <el-button type="primary" size="small" link @click="editChapter(data)">
                     编辑
                   </el-button>
-                  <el-button type="danger" size="small" link @click="deleteChapter(data.id)">
+                  <el-button type="danger" size="small" link @click="deleteChapter(data.id, data)">
                     删除
                   </el-button>
                 </div>
@@ -236,10 +236,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { teacherAPI } from '@/services/index.js';
 
 const router = useRouter();
+const route = useRoute();
+
+// 当前班级ID（从路由 query 传入）
+const classId = ref(route.query.class_id || '');
+// 当前教师ID
+const teacherId = ref(localStorage.getItem('userId') || '');
 
 // 当前激活的Tab
 const activeTab = ref('chapters');
@@ -289,32 +296,35 @@ const questionForm = ref({
 const generatingQuestion = ref(false);
 const questionResult = ref(null);
 
+// 将后端章节数据映射为树形结构
+const mapChaptersToTree = (chapters) => {
+  return (chapters || []).map(chap => ({
+    id: chap.chapter_id,
+    label: chap.title,
+    description: chap.description,
+    sort_order: chap.sort_order,
+    type: 'folder',
+    children: (chap.sections || []).map(sec => ({
+      id: sec.section_id,
+      label: sec.title,
+      description: sec.description,
+      section_type: sec.section_type,
+      sort_order: sec.sort_order,
+      type: sec.section_type === 1 ? 'problem' : 'discussion',
+      parentId: chap.chapter_id
+    }))
+  }));
+};
+
 // 加载章节列表
 const loadChapters = async () => {
+  if (!classId.value) {
+    ElMessage.warning('缺少班级ID，无法加载章节');
+    return;
+  }
   try {
-    // TODO: 调用API获取章节列表
-    // 模拟数据
-    chapterTree.value = [
-      {
-        id: 1,
-        label: '第一章 Python基础',
-        type: 'folder',
-        children: [
-          { id: 11, label: '1.1 Python简介', type: 'video' },
-          { id: 12, label: '1.2 变量与数据类型', type: 'pdf' },
-          { id: 13, label: '1.3 运算符', type: 'word' }
-        ]
-      },
-      {
-        id: 2,
-        label: '第二章 控制流程',
-        type: 'folder',
-        children: [
-          { id: 21, label: '2.1 条件语句', type: 'video' },
-          { id: 22, label: '2.2 循环语句', type: 'video' }
-        ]
-      }
-    ];
+    const res = await teacherAPI.getClassChapters(classId.value);
+    chapterTree.value = mapChaptersToTree(res.data?.chapters);
   } catch (error) {
     console.error('加载章节列表失败:', error);
     ElMessage.error('加载章节列表失败');
@@ -327,6 +337,7 @@ const showAddChapterDialog = () => {
   chapterForm.value = {
     id: null,
     name: '',
+    description: '',
     file: null
   };
   chapterDialogVisible.value = true;
@@ -338,6 +349,7 @@ const editChapter = (chapter) => {
   chapterForm.value = {
     id: chapter.id,
     name: chapter.label,
+    description: chapter.description || '',
     file: null
   };
   chapterDialogVisible.value = true;
@@ -357,9 +369,13 @@ const saveChapter = async () => {
 
   try {
     savingChapter.value = true;
-    // TODO: 调用API保存章节
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    if (chapterForm.value.id) {
+      // 编辑章节
+      await teacherAPI.updateChapter(teacherId.value, chapterForm.value.id, chapterForm.value.name, chapterForm.value.description || '');
+    } else {
+      // 新增章节
+      await teacherAPI.createChapter(teacherId.value, classId.value, chapterForm.value.name, chapterForm.value.description || '');
+    }
     ElMessage.success('保存成功');
     chapterDialogVisible.value = false;
     loadChapters();
@@ -371,22 +387,28 @@ const saveChapter = async () => {
   }
 };
 
-// 删除章节
-const deleteChapter = async (chapterId) => {
+// 删除章节或小节
+const deleteChapter = async (id, data) => {
   try {
-    await ElMessageBox.confirm('确定要删除该章节吗？删除后无法恢复！', '确认删除', {
+    await ElMessageBox.confirm('确定要删除吗？删除后无法恢复！', '确认删除', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
 
-    // TODO: 调用API删除章节
+    if (data && data.parentId) {
+      // 删除小节
+      await teacherAPI.deleteSection(teacherId.value, id);
+    } else {
+      // 删除章节
+      await teacherAPI.deleteChapter(teacherId.value, id);
+    }
     ElMessage.success('删除成功');
     loadChapters();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除章节失败:', error);
-      ElMessage.error('删除章节失败');
+      console.error('删除失败:', error);
+      ElMessage.error('删除失败');
     }
   }
 };
