@@ -88,7 +88,7 @@
             >
               <div class="announcement-header">
                 <h3>{{ item.title }}</h3>
-                <el-tag type="success" size="small">班级</el-tag>
+                <el-tag type="success" size="small">{{ item.className || '班级' }}</el-tag>
               </div>
               <div class="announcement-meta">
                 <span>
@@ -358,28 +358,49 @@ const loadTodoList = async () => {
   }
 };
 
-// 加载班级公告
+// 加载班级公告（查询该学生所在全部班级的公告，按时间倒序）
 const loadClassAnnouncements = async () => {
   try {
-    // TODO: 调用API获取班级公告
-    // 模拟数据
-    classAnnouncements.value = [
-      {
-        id: 1,
-        title: '本周课程安排调整通知',
-        teacher: '张老师',
-        publishTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        content: '由于教室调整，本周三的数据结构课程将在A301教室上课，请同学们注意。'
-      },
-      {
-        id: 2,
-        title: '期中考试安排',
-        teacher: '李老师',
-        publishTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        content: '期中考试将于下周五进行，考试范围为第1-5章内容，请同学们认真复习。'
+    const studentId = localStorage.getItem('userId') || localStorage.getItem('studentId');
+    if (!studentId) return;
+
+    // 1. 获取学生所在的全部班级
+    const classRes = await studentAPI.getStudentClasses(studentId);
+    const classes = classRes?.data?.classes || classRes?.classes || [];
+    if (classes.length === 0) {
+      classAnnouncements.value = [];
+      classTotal.value = 0;
+      return;
+    }
+
+    // 2. 并发查询每个班级的公告
+    const results = await Promise.allSettled(
+      classes.map(cls => studentAPI.getAnnouncements(cls.class_id))
+    );
+
+    // 3. 合并所有公告，附加班级名称，按发布时间倒序排列
+    const allAnnouncements = [];
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled') {
+        const announcements = result.value?.data?.announcements || result.value?.announcements || [];
+        announcements.forEach(item => {
+          allAnnouncements.push({
+            id: item.announcement_id || item.id,
+            title: item.title,
+            teacher: item.teacher_name || item.teacher || '',
+            publishTime: item.created_at || item.publish_time || item.publishTime,
+            content: item.content,
+            className: classes[idx]?.class_name || ''
+          });
+        });
       }
-    ];
-    classTotal.value = classAnnouncements.value.length;
+    });
+
+    // 按发布时间倒序
+    allAnnouncements.sort((a, b) => new Date(b.publishTime) - new Date(a.publishTime));
+
+    classAnnouncements.value = allAnnouncements;
+    classTotal.value = allAnnouncements.length;
   } catch (error) {
     console.error('加载班级公告失败:', error);
     ElMessage.error('加载班级公告失败');

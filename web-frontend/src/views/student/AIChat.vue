@@ -54,22 +54,48 @@
       <div class="chat-main">
         <!-- 顶部功能区 -->
         <div class="function-bar">
-          <div class="function-item">
-            <span class="label">模型选择：</span>
-            <el-select v-model="selectedModel" placeholder="选择模型" style="width: 150px">
-              <el-option label="DeepSeek" value="deepseek" />
-              <el-option label="豆包" value="doubao" />
-              <el-option label="通义千问" value="qwen" />
-              <el-option label="Gemini 3" value="gemini3" />
+          <div class="function-item model-item">
+            <span class="label">模型：</span>
+            <el-select
+              v-model="selectedModel"
+              placeholder="选择模型"
+              style="width: 210px"
+              :loading="modelsLoading"
+              popper-class="model-select-popper"
+            >
+              <el-option
+                v-for="m in modelList"
+                :key="m.model_id"
+                :value="m.model_id"
+                :label="m.model_name"
+              >
+                <div class="model-option-item">
+                  <div class="model-option-header">
+                    <span class="model-option-name">{{ m.model_name }}</span>
+                    <span class="model-option-provider" :class="m.provider">{{ m.provider === 'doubao' ? '豆包' : '千问' }}</span>
+                  </div>
+                  <div class="model-option-desc">{{ m.description }}</div>
+                </div>
+              </el-option>
             </el-select>
+            <!-- 当前模型描述 -->
+            <transition name="fade">
+              <span v-if="currentModelDesc" class="model-desc-badge">
+                {{ currentModelDesc }}
+              </span>
+            </transition>
           </div>
           <div class="function-item">
             <span class="label">联网搜索：</span>
             <el-switch v-model="enableWebSearch" />
           </div>
-          <div class="function-item">
+          <div class="function-item" v-if="!isQwenModel">
             <span class="label">深度思考：</span>
             <el-switch v-model="enableDeepThink" />
+          </div>
+          <div class="function-item qwen-think-tip" v-else>
+            <span class="label">深度思考：</span>
+            <span class="qwen-auto-tip">模型自动决定是否开启思考模式</span>
           </div>
         </div>
 
@@ -101,7 +127,29 @@
                 </el-avatar>
               </div>
               <div class="message-content">
-                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              <!-- 深度思考内容区块 -->
+              <div v-if="msg.thinkContent" class="think-block">
+                <div class="think-header" @click="msg.thinkExpanded = !msg.thinkExpanded">
+                  <span class="think-icon">🧠</span>
+                  <span class="think-title">思考过程</span>
+                  <span class="think-toggle">{{ msg.thinkExpanded ? '收起' : '展开' }}</span>
+                </div>
+                <div v-show="msg.thinkExpanded" class="think-content" v-html="formatMessage(msg.thinkContent)"></div>
+              </div>
+              <!-- 正文内容 -->
+              <div class="message-text">
+                <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
+                <!-- 图片预览 -->
+                <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                  <img
+                    v-for="(imgUrl, imgIdx) in msg.images"
+                    :key="imgIdx"
+                    :src="imgUrl"
+                    class="message-image-preview"
+                    @click="previewImage(imgUrl)"
+                  />
+                </div>
+              </div>
                 <div class="message-time">{{ formatTime(msg.time) }}</div>
               </div>
             </div>
@@ -130,27 +178,48 @@
               type="textarea"
               :rows="3"
               placeholder="输入您的问题..."
-              @keydown.enter.ctrl="sendMessage"
+              @keydown="handleKeydown"
             />
             <div class="input-actions">
+              <!-- 待发送图片预览 -->
+              <div v-if="pendingImages.length > 0" class="pending-images">
+                <div
+                  v-for="(img, idx) in pendingImages"
+                  :key="idx"
+                  class="pending-image-item"
+                >
+                  <img :src="img.dataUrl" class="pending-image-thumb" />
+                  <span class="pending-image-name">{{ img.name }}</span>
+                  <el-icon class="pending-image-remove" @click="removePendingImage(idx)"><Close /></el-icon>
+                </div>
+              </div>
               <el-upload
                 :show-file-list="false"
                 :before-upload="handleFileUpload"
-                accept="image/*,.pdf,.doc,.docx"
+                accept="image/*"
+                multiple
               >
                 <el-button type="text">
                   <el-icon><Paperclip /></el-icon>
-                  上传文件（支持图片/PDF/Word，OCR识别）
+                  上传图片
                 </el-button>
               </el-upload>
               <el-button
+                v-if="!isLoading"
                 type="primary"
-                :loading="isLoading"
                 :disabled="!inputMessage.trim()"
                 @click="sendMessage"
               >
                 <el-icon><Promotion /></el-icon>
-                发送 (Ctrl+Enter)
+                发送
+              </el-button>
+              <el-button
+                v-else
+                type="danger"
+                @click="stopMessage"
+              >
+                <el-icon><VideoPause /></el-icon>
+                停止
               </el-button>
             </div>
           </div>
@@ -198,7 +267,13 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { Search, VideoPause, Close } from '@element-plus/icons-vue';
+
+// 图片预览
+const previewImage = (url) => {
+  window.open(url, '_blank');
+};
+import { studentAPI } from '@/services/index.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -213,15 +288,68 @@ const sessions = ref([]);
 const currentSessionId = ref(null);
 
 // 模型配置
-const selectedModel = ref('deepseek');
+const selectedModel = ref('')
 const enableWebSearch = ref(false);
 const enableDeepThink = ref(false);
+
+// 模型列表（从后端动态加载）
+const modelList = ref([])
+const modelsLoading = ref(false)
+
+const loadModels = async () => {
+  modelsLoading.value = true
+  try {
+    const res = await studentAPI.getAIModels()
+    const models = res?.data?.models || []
+    modelList.value = models
+    if (models.length > 0 && !selectedModel.value) {
+      selectedModel.value = models[0].model_id
+    }
+  } catch (e) {
+    console.error('加载模型列表失败:', e)
+    // 失败时使用默认模型
+    modelList.value = [
+      { model_id: 'doubao-seed-1-6-lite-251015', model_name: 'Doubao-Seed-1.6-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
+      { model_id: 'qwen3-omni-flash', model_name: 'Qwen3-Omni-Flash', provider: 'qwen', description: '全模态模型，Thinker–Talker 架构' }
+    ]
+    if (!selectedModel.value) selectedModel.value = 'doubao-seed-1-6-lite-251015'
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+// 当前选中模型的描述
+const currentModelDesc = computed(() => {
+  const m = modelList.value.find(m => m.model_id === selectedModel.value)
+  return m?.description || ''
+})
+
+// 是否为千问模型
+const isQwenModel = computed(() => {
+  const m = modelList.value.find(m => m.model_id === selectedModel.value)
+  return m?.provider === 'qwen'
+})
 
 // 消息相关
 const messages = ref([]);
 const inputMessage = ref('');
 const isLoading = ref(false);
 const messageArea = ref(null);
+
+// 待发送的图片附件（base64列表）
+const pendingImages = ref([]); // [{dataUrl: 'data:image/...;base64,...', name: 'xxx.png'}]
+
+// 中止控制器（用于终止流式请求）
+let abortController = null;
+
+// 停止当前对话
+const stopMessage = () => {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  isLoading.value = false;
+};
 
 // 导出对话框
 const exportDialogVisible = ref(false);
@@ -304,63 +432,193 @@ const loadSession = async (sessionId) => {
   }
 };
 
-// 发送消息
+// 处理键盘事件，Ctrl+Enter 发送
+const handleKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault()
+    sendMessage()
+  }
+}
+
+// 发送消息（SSE流式）
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return;
 
+  // 构建消息内容：文本 + 图片（用特殊标记拼接）
+  let messageContent = inputMessage.value;
+  const imageSnapshots = [...pendingImages.value]; // 快照，避免发送过程中被清空
+  if (imageSnapshots.length > 0) {
+    for (const img of imageSnapshots) {
+      messageContent += `\n[IMAGE:${img.dataUrl}]`;
+    }
+  }
+
   const userMessage = {
     role: 'user',
-    content: inputMessage.value,
+    content: messageContent,
+    displayContent: inputMessage.value, // 用于UI展示的纯文本
+    images: imageSnapshots.map(img => img.dataUrl), // 用于UI展示的图片列表
     time: new Date().toISOString()
   };
 
   messages.value.push(userMessage);
   const question = inputMessage.value;
   inputMessage.value = '';
+  pendingImages.value = []; // 清空待发送图片
   isLoading.value = true;
 
   await nextTick();
   scrollToBottom();
 
+  // 构建消息历史（包含图片标记）
+  const historyMessages = messages.value
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }))
+
+  // 预先添加空的 assistant 消息，用于流式填充
+  const assistantMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    thinkContent: '',   // 思考过程内容
+    thinkExpanded: true, // 默认展开
+    time: new Date().toISOString()
+  })
+
   try {
-    // TODO: 调用AI API
-    // 模拟AI回复
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    abortController = new AbortController();
+    const response = await studentAPI.aiChatStream({
+      question_type: 'general',
+      messages: historyMessages,
+      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
+      enable_thinking: enableDeepThink.value
+    }, abortController.signal)
 
-    const aiMessage = {
-      role: 'assistant',
-      content: `这是对"${question}"的回答。我理解您的问题，让我为您详细解答...`,
-      time: new Date().toISOString()
-    };
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(errText || `HTTP ${response.status}`)
+    }
 
-    messages.value.push(aiMessage);
-    await nextTick();
-    scrollToBottom();
+    // 读取 SSE 流
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    // think标签状态机：解析跨chunk的<think>...</think>
+    let thinkBuf = ''  // 未处理的原始片段缓冲
+    let inThink = false
+
+    const processChunkContent = (raw) => {
+      thinkBuf += raw
+      const msg = messages.value[assistantMsgIdx]
+      while (thinkBuf.length > 0) {
+        if (inThink) {
+          const endIdx = thinkBuf.indexOf('</think>')
+          if (endIdx !== -1) {
+            msg.thinkContent += thinkBuf.slice(0, endIdx)
+            thinkBuf = thinkBuf.slice(endIdx + 8)
+            inThink = false
+          } else {
+            // </think>还没到，先把安全部分写入（保留7个字符防止标签被截断）
+            const safe = thinkBuf.length > 7 ? thinkBuf.slice(0, thinkBuf.length - 7) : ''
+            if (safe) { msg.thinkContent += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        } else {
+          const startIdx = thinkBuf.indexOf('<think>')
+          if (startIdx !== -1) {
+            msg.content += thinkBuf.slice(0, startIdx)
+            thinkBuf = thinkBuf.slice(startIdx + 7)
+            inThink = true
+          } else {
+            // <think>还没到，先把安全部分写入（保留6个字符防止标签被截断）
+            const safe = thinkBuf.length > 6 ? thinkBuf.slice(0, thinkBuf.length - 6) : ''
+            if (safe) { msg.content += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        }
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        // 流结束，把剩余buffer全部写入
+        if (thinkBuf) {
+          const msg = messages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') { isLoading.value = false; break }
+          try {
+            const chunk = JSON.parse(data)
+            if (chunk.content) {
+              processChunkContent(chunk.content)
+              await nextTick()
+              scrollToBottom()
+            }
+            if (chunk.is_end) isLoading.value = false
+          } catch (e) { /* 忽略解析错误 */ }
+        }
+      }
+    }
   } catch (error) {
-    console.error('发送消息失败:', error);
-    ElMessage.error('发送消息失败');
+    if (error?.name === 'AbortError') {
+      // 用户主动终止，不提示错误
+    } else {
+      console.error('发送消息失败:', error);
+      ElMessage.error('发送消息失败：' + (error?.message || error));
+      // 移除空的 assistant 消息
+      if (messages.value[assistantMsgIdx]?.content === '' && !messages.value[assistantMsgIdx]?.thinkContent) {
+        messages.value.splice(assistantMsgIdx, 1)
+      }
+    }
   } finally {
     isLoading.value = false;
+    abortController = null;
   }
 };
 
-// 处理文件上传
+// 处理文件上传（仅支持图片，转base64后附加到消息）
 const handleFileUpload = (file) => {
-  const isValidType = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
+  const isImage = file.type.startsWith('image/');
   const isLt10M = file.size / 1024 / 1024 < 10;
 
-  if (!isValidType) {
-    ElMessage.error('只支持上传图片、PDF或Word文档！');
+  if (!isImage) {
+    ElMessage.error('目前仅支持上传图片文件（JPG/PNG/GIF/WEBP等）！');
     return false;
   }
   if (!isLt10M) {
-    ElMessage.error('文件大小不能超过10MB！');
+    ElMessage.error('图片大小不能超过10MB！');
     return false;
   }
 
-  // TODO: 上传文件并OCR识别
-  ElMessage.success('文件上传成功，正在识别...');
+  // 将图片转为 base64
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingImages.value.push({
+      dataUrl: e.target.result,
+      name: file.name
+    });
+    ElMessage.success(`图片「${file.name}」已添加，发送消息时将一并发送给AI`);
+  };
+  reader.readAsDataURL(file);
   return false; // 阻止自动上传
+};
+
+// 移除待发送图片
+const removePendingImage = (index) => {
+  pendingImages.value.splice(index, 1);
 };
 
 // 收藏会话
@@ -483,6 +741,7 @@ watch(() => route.query.question, (question) => {
 // 页面加载
 onMounted(() => {
   loadSessions();
+  loadModels();  // 加载模型列表
 });
 </script>
 
@@ -631,21 +890,49 @@ onMounted(() => {
       // 功能栏
       .function-bar {
         display: flex;
-        gap: 25px;
-        padding: 15px 25px;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 25px;
         border-bottom: 1px solid #e4e7ed;
         background: linear-gradient(to right, #fafbff 0%, #f8f9ff 100%);
+        flex-wrap: wrap;
 
         .function-item {
           display: flex;
           align-items: center;
           gap: 10px;
 
+          &.model-item {
+            flex: 1;
+            min-width: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
           .label {
             font-size: 14px;
             color: #606266;
             font-weight: 500;
             white-space: nowrap;
+          }
+
+          .qwen-auto-tip {
+            font-size: 12px;
+            color: #909399;
+            font-style: italic;
+          }
+
+          .model-desc-badge {
+            font-size: 12px;
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 20px;
+            padding: 2px 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 260px;
           }
 
           :deep(.el-select) {
@@ -742,6 +1029,43 @@ onMounted(() => {
               flex-direction: column;
               gap: 8px;
 
+              // 深度思考区块
+              .think-block {
+                max-width: 80%;
+                margin-bottom: 8px;
+                border: 1px solid rgba(102, 126, 234, 0.25);
+                border-radius: 10px;
+                overflow: hidden;
+                background: rgba(102, 126, 234, 0.04);
+
+                .think-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  padding: 8px 12px;
+                  cursor: pointer;
+                  user-select: none;
+                  background: rgba(102, 126, 234, 0.08);
+                  transition: background 0.2s;
+
+                  &:hover { background: rgba(102, 126, 234, 0.14); }
+
+                  .think-icon { font-size: 14px; }
+                  .think-title { font-size: 13px; font-weight: 600; color: #667eea; flex: 1; }
+                  .think-toggle { font-size: 12px; color: #909399; }
+                }
+
+                .think-content {
+                  padding: 10px 14px;
+                  font-size: 13px;
+                  line-height: 1.7;
+                  color: #606266;
+                  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                }
+              }
+
               .message-text {
                 background: #f5f7fa;
                 padding: 12px 16px;
@@ -762,6 +1086,29 @@ onMounted(() => {
                   padding: 2px 6px;
                   border-radius: 4px;
                   font-family: 'Courier New', monospace;
+                }
+
+                // 消息中的图片预览
+                .message-images {
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 8px;
+                  margin-top: 8px;
+
+                  .message-image-preview {
+                    max-width: 200px;
+                    max-height: 200px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    object-fit: cover;
+                    border: 1px solid rgba(0, 0, 0, 0.1);
+                    transition: all 0.2s ease;
+
+                    &:hover {
+                      transform: scale(1.02);
+                      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    }
+                  }
                 }
               }
 
@@ -812,6 +1159,51 @@ onMounted(() => {
             &:focus {
               border-color: #667eea;
               box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+          }
+
+          // 待发送图片预览区
+          .pending-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+
+            .pending-image-item {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              background: #f0f4ff;
+              border: 1px solid rgba(102, 126, 234, 0.3);
+              border-radius: 8px;
+              padding: 4px 8px 4px 4px;
+
+              .pending-image-thumb {
+                width: 40px;
+                height: 40px;
+                object-fit: cover;
+                border-radius: 6px;
+              }
+
+              .pending-image-name {
+                font-size: 12px;
+                color: #606266;
+                max-width: 100px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              }
+
+              .pending-image-remove {
+                cursor: pointer;
+                color: #909399;
+                font-size: 14px;
+                flex-shrink: 0;
+
+                &:hover {
+                  color: #f56c6c;
+                }
+              }
             }
           }
 
@@ -963,6 +1355,58 @@ onMounted(() => {
   40% {
     transform: scale(1);
   }
+}
+
+// fade 过渡
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+// 模型选项下拉样式（全局，popper在body下）
+:global(.model-select-popper .el-select-dropdown__item) {
+  height: auto !important;
+  padding: 8px 12px !important;
+}
+
+:global(.model-option-item) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+:global(.model-option-header) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:global(.model-option-name) {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+
+:global(.model-option-provider) {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+
+  &.doubao {
+    background: rgba(255, 107, 53, 0.1);
+    color: #e05a2b;
+  }
+
+  &.qwen {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+  }
+}
+
+:global(.model-option-desc) {
+  font-size: 11px;
+  color: #909399;
+  line-height: 1.4;
 }
 
 // 响应式

@@ -74,15 +74,15 @@
             <div class="course-teacher">授课教师：{{ currentClass.teacher }}</div>
           </div>
           <div class="course-progress">
-            <van-circle
-              :rate="currentClass.progress"
+          <van-circle
+              :rate="progressPercent"
               :speed="100"
               :stroke-width="60"
               size="60px"
-              color="#667eea"
-              layer-color="#ebedf0"
+              :color="progressPercent === 100 ? '#07c160' : progressPercent > 0 ? '#667eea' : '#c8c9cc'"
+              layer-color="rgba(255,255,255,0.3)"
             >
-              <span class="progress-text">{{ currentClass.progress }}%</span>
+              <span class="progress-text" :style="{ color: progressPercent === 100 ? '#07c160' : '#fff' }">{{ progressPercent }}%</span>
             </van-circle>
             <div class="progress-label">完成度</div>
           </div>
@@ -91,6 +91,9 @@
         <!-- 章节列表 -->
         <div class="section-header">
           <h3>课程目录</h3>
+          <span v-if="totalSections > 0" class="sub-text" style="color:#07c160;font-weight:600">
+            已完成 {{ completedSections }}/{{ totalSections }} 算法题
+          </span>
         </div>
 
         <div v-if="chaptersLoading" style="text-align:center;padding:40px 0;">
@@ -109,17 +112,21 @@
           >
             <template #title>
               <div class="chapter-title">
-                <van-icon name="bookmark-o" color="#667eea" />
-                <span>{{ chapter.title }}</span>
-                <van-badge :content="chapter.sections ? chapter.sections.length : 0" color="#667eea" style="margin-left:auto" />
+                <van-icon
+                  :name="isChapterDone(chapter) ? 'passed' : 'bookmark-o'"
+                  :color="isChapterDone(chapter) ? '#07c160' : '#667eea'"
+                  :size="isChapterDone(chapter) ? '22' : '18'"
+                />
+                <span :style="isChapterDone(chapter) ? 'color:#07c160;font-weight:600' : ''">{{ chapter.title }}</span>
               </div>
             </template>
 
-            <div class="problem-list">
+              <div class="problem-list">
               <div
                 v-for="section in chapter.sections"
                 :key="section.section_id"
                 class="problem-item"
+                :class="{ 'problem-item--done': isSectionDone(section) }"
                 @click="viewSection(section)"
               >
                 <div class="problem-left">
@@ -134,6 +141,19 @@
                   </div>
                 </div>
                 <div class="problem-right">
+                  <template v-if="section.section_type === 1">
+                    <van-icon
+                      v-if="isSectionDone(section)"
+                      name="passed"
+                      color="#07c160"
+                      size="16"
+                      style="margin-right:4px"
+                    />
+                    <span
+                      v-else
+                      class="section-undone-icon"
+                    ></span>
+                  </template>
                   <van-icon name="arrow" color="#c8c9cc" size="14" style="margin-left:4px" />
                 </div>
               </div>
@@ -143,6 +163,31 @@
         </van-collapse>
       </div>
     </template>
+
+    <!-- ===== 讨论详情弹窗 ===== -->
+    <van-popup
+      v-model:show="showDiscussDetail"
+      position="bottom"
+      round
+      :style="{ height: '60%' }"
+    >
+      <div class="discuss-detail" v-if="currentDiscussion">
+        <div class="discuss-header">
+          <div class="discuss-title-row">
+            <span class="discuss-title">讨论</span>
+            <van-icon name="cross" size="20" color="#909399" @click="showDiscussDetail = false" />
+          </div>
+        </div>
+        <div class="discuss-body">
+          <div class="discuss-name">{{ currentDiscussion.title }}</div>
+          <div class="discuss-meta">
+            <van-icon name="clock-o" />
+            <span>发布时间：{{ currentDiscussion.create_time || '未知' }}</span>
+          </div>
+          <div class="discuss-content">{{ currentDiscussion.content || '暂无内容' }}</div>
+        </div>
+      </div>
+    </van-popup>
 
     <!-- ===== 第三层：题目详情弹窗 ===== -->
     <van-popup
@@ -240,10 +285,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { studentAPI } from '@/api/index.js'
 import { showToast } from 'vant'
+
+// 讨论弹窗
+const showDiscussDetail = ref(false)
+const currentDiscussion = ref(null)
 
 const router = useRouter()
 
@@ -253,6 +302,30 @@ const currentClass = ref(null)
 const currentProblem = ref(null)
 const showProblemDetail = ref(false)
 const activeChapters = ref('')
+
+// 已完成的 problem_id 集合（算法题通过状态）—— 用数组保证响应式
+const acceptedProblemIds = ref([])
+// 总算法题小节数 / 已完成算法题小节数
+const totalSections = ref(0)
+const completedSections = ref(0)
+
+// 当前课程完成度百分比（0-100）
+const progressPercent = computed(() => {
+  if (totalSections.value === 0) return 0
+  return Math.round((completedSections.value / totalSections.value) * 100)
+})
+
+// 判断某小节是否已完成
+const isSectionDone = (section) => {
+  return section.section_type === 1 && section.problem_id && acceptedProblemIds.value.includes(section.problem_id)
+}
+
+// 判断某章节是否全部完成（所有算法题小节都已通过）
+const isChapterDone = (chapter) => {
+  const problemSections = (chapter.sections || []).filter(s => s.section_type === 1 && s.problem_id)
+  if (problemSections.length === 0) return false
+  return problemSections.every(s => acceptedProblemIds.value.includes(s.problem_id))
+}
 
 // 班级列表加载状态
 const classListLoading = ref(true)
@@ -315,12 +388,41 @@ const enterClass = async (cls) => {
   currentClass.value = cls
   courseChapters.value = []
   activeChapters.value = ''
+  acceptedProblemIds.value = []
+  totalSections.value = 0
+  completedSections.value = 0
   currentView.value = 'catalog'
   // 加载章节列表
   chaptersLoading.value = true
   try {
     const res = await studentAPI.getClassChapters(cls.id)
     courseChapters.value = res?.data?.chapters || res?.chapters || []
+
+    // 统计总算法题小节数，收集所有算法题 problem_id
+    let total = 0
+    const problemIds = []
+    for (const chapter of courseChapters.value) {
+      for (const section of (chapter.sections || [])) {
+        if (section.section_type === 1 && section.problem_id) {
+          total++
+          problemIds.push(section.problem_id)
+        }
+      }
+    }
+    totalSections.value = total
+
+    // 批量查询已通过的题目
+    if (problemIds.length > 0) {
+      try {
+        const progressRes = await studentAPI.getCodeProgress(problemIds)
+        const acceptedIds = progressRes?.data?.accepted_problem_ids || progressRes?.accepted_problem_ids || []
+        // section.problem_id 是 varchar 字符串，统一转为字符串比较
+        acceptedProblemIds.value = acceptedIds.map(id => String(id))
+        completedSections.value = acceptedIds.length
+      } catch (e) {
+        console.warn('加载完成状态失败:', e)
+      }
+    }
   } catch (e) {
     showToast({ type: 'fail', message: '加载章节失败' })
   } finally {
@@ -328,19 +430,70 @@ const enterClass = async (cls) => {
   }
 }
 
-// 查看小节（算法题直接跳转，讨论暂时提示）
-const viewSection = (section) => {
+// 查看小节：算法题调接口查详情展示弹窗，讨论展示讨论弹窗
+const viewSection = async (section) => {
   if (section.section_type === 1) {
+    // 算法题
     if (!section.problem_id) {
       showToast({ type: 'text', message: '题目暂未关联' })
       return
     }
-    router.push({
-      name: 'student-problem-code',
-      params: { problemId: section.problem_id }
-    })
+    try {
+      const res = await studentAPI.getProblem(section.problem_id)
+      const p = res?.problem
+      if (!p) {
+        showToast({ type: 'fail', message: '题目信息获取失败' })
+        return
+      }
+      let tags = []
+      try { tags = p.tags ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : [] } catch { tags = [] }
+
+      // 从 description 中解析输入格式、输出格式（### 输入格式 / ### 输出格式 段落）
+      const desc = p.description || ''
+      const inputMatch = desc.match(/###\s*输入格式\s*\n([\s\S]*?)(?=###|$)/)
+      const outputMatch = desc.match(/###\s*输出格式\s*\n([\s\S]*?)(?=###|$)/)
+      const inputFormat = inputMatch ? inputMatch[1].trim() : ''
+      const outputFormat = outputMatch ? outputMatch[1].trim() : ''
+      // 去掉 description 中的输入输出格式段落，只保留正文
+      const cleanDesc = desc
+        .replace(/###\s*输入格式\s*\n[\s\S]*?(?=###|$)/, '')
+        .replace(/###\s*输出格式\s*\n[\s\S]*?(?=###|$)/, '')
+        .trim()
+
+      // 从 test_cases 解析样例（is_sample === 1）
+      let samples = []
+      try {
+        const tc = JSON.parse(p.test_cases || '[]')
+        samples = tc
+          .filter(t => t.is_sample === 1)
+          .map(t => ({ input: t.input, output: t.expected_output, explanation: t.explanation || '' }))
+      } catch { samples = [] }
+
+      currentProblem.value = {
+        id: p.id,
+        title: p.title,
+        difficulty: p.difficulty,
+        tags,
+        description: cleanDesc,
+        inputFormat,
+        outputFormat,
+        samples,
+        hint: p.hint || '',
+        timeLimit: p.time_limit || 1000,
+        memoryLimit: p.memory_limit || 256
+      }
+      showProblemDetail.value = true
+    } catch (e) {
+      showToast({ type: 'fail', message: '题目信息获取失败' })
+    }
   } else {
-    showToast({ type: 'text', message: '讨论功能即将上线' })
+    // 讨论
+    currentDiscussion.value = {
+      title: section.discussion_title || section.title,
+      content: section.discussion_content || section.description || '暂无内容',
+      create_time: section.create_time
+    }
+    showDiscussDetail.value = true
   }
 }
 
@@ -350,9 +503,9 @@ const viewProblem = (problem) => {
   showProblemDetail.value = true
 }
 
-// 难度标签（保留兼容）
+// 难度标签（兼容中英文）
 const difficultyLabel = (diff) => {
-  const map = { easy: '简单', medium: '中等', hard: '困难' }
+  const map = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' }
   return map[diff] || diff
 }
 
@@ -474,7 +627,7 @@ const goToSubmit = () => {
 .progress-text {
   font-size: 13px;
   font-weight: 700;
-  color: #667eea;
+  color: #fff;
 }
 .progress-label {
   font-size: 12px;
@@ -511,6 +664,12 @@ const goToSubmit = () => {
 }
 .problem-item:active {
   background: #f5f7fa;
+}
+.problem-item.problem-item--done {
+  background: #f6ffed;
+}
+.problem-item.problem-item--done .problem-title {
+  color: #07c160;
 }
 .problem-left {
   display: flex;
@@ -556,6 +715,16 @@ const goToSubmit = () => {
   flex-shrink: 0;
   margin-left: 8px;
 }
+.section-undone-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #c8c9cc;
+  background: #fff;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
 
 /* 题目详情弹窗 */
 .problem-detail {
@@ -596,9 +765,9 @@ const goToSubmit = () => {
   align-items: center;
   gap: 3px;
 }
-.diff-tag-easy { background: #e8f5e9 !important; color: #4caf50 !important; border-color: #4caf50 !important; }
-.diff-tag-medium { background: #fff3e0 !important; color: #ff9800 !important; border-color: #ff9800 !important; }
-.diff-tag-hard { background: #fce4ec !important; color: #e91e63 !important; border-color: #e91e63 !important; }
+.diff-tag-easy, .diff-tag-简单 { background: #e8f5e9 !important; color: #4caf50 !important; border-color: #4caf50 !important; }
+.diff-tag-medium, .diff-tag-中等 { background: #fff3e0 !important; color: #ff9800 !important; border-color: #ff9800 !important; }
+.diff-tag-hard, .diff-tag-困难 { background: #fce4ec !important; color: #e91e63 !important; border-color: #e91e63 !important; }
 
 .detail-body {
   flex: 1;
@@ -676,6 +845,57 @@ const goToSubmit = () => {
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid #ebedf0;
   flex-shrink: 0;
+}
+
+/* 讨论弹窗 */
+.discuss-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.discuss-header {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #ebedf0;
+  flex-shrink: 0;
+}
+.discuss-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.discuss-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #303133;
+}
+.discuss-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.discuss-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.discuss-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 14px;
+}
+.discuss-content {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.8;
+  white-space: pre-line;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 14px;
 }
 
 /* 折叠面板样式 */

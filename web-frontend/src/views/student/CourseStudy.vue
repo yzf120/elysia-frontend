@@ -102,16 +102,16 @@
             </div>
           </div>
           <div class="banner-right">
-            <el-progress
+          <el-progress
               type="circle"
-              :percentage="currentClass.progress"
+              :percentage="progressPercent"
               :width="80"
               :stroke-width="8"
-              color="#fff"
-              track-color="rgba(255,255,255,0.3)"
+              :color="progressPercent === 100 ? '#52c41a' : progressPercent > 0 ? '#fff' : 'rgba(255,255,255,0.35)'"
+              track-color="rgba(255,255,255,0.25)"
             >
               <template #default>
-                <span class="circle-progress-text">{{ currentClass.progress }}%</span>
+                <span class="circle-progress-text" :style="{ color: progressPercent === 100 ? '#52c41a' : '#fff' }">{{ progressPercent }}%</span>
               </template>
             </el-progress>
             <div class="circle-label">完成度</div>
@@ -122,66 +122,98 @@
         <div class="section-header" style="margin-top:20px">
           <span class="section-title">课程目录</span>
           <span class="section-sub">共 {{ courseChapters.length }} 个章节</span>
+          <span v-if="totalSections > 0" class="section-sub" style="margin-left:8px;color:#67c23a;font-weight:600">
+            已完成 {{ completedSections }}/{{ totalSections }} 算法题
+          </span>
         </div>
 
-        <el-collapse v-model="activeChapters" class="chapter-collapse">
+        <!-- 加载中 -->
+        <div v-if="chaptersLoading" style="text-align:center;padding:60px 0;">
+          <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+          <div style="margin-top:8px;color:#909399;font-size:14px;">加载中...</div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else-if="courseChapters.length === 0" class="empty-wrap">
+          <el-empty description="暂无课程内容" />
+        </div>
+
+        <el-collapse v-else v-model="activeChapters" class="chapter-collapse">
           <el-collapse-item
             v-for="chapter in courseChapters"
-            :key="chapter.id"
-            :name="chapter.id"
+            :key="chapter.chapter_id"
+            :name="chapter.chapter_id"
           >
             <template #title>
               <div class="chapter-title-row">
-                <el-icon color="#667eea"><Notebook /></el-icon>
-                <span class="chapter-title-text">{{ chapter.title }}</span>
-                <el-badge :value="chapter.problems.length" type="primary" class="chapter-badge" />
-                <span class="chapter-solved">
-                  已完成 {{ chapter.problems.filter(p => p.solved).length }}/{{ chapter.problems.length }}
-                </span>
+                <el-icon :color="isChapterDone(chapter) ? '#67c23a' : '#667eea'"><Notebook /></el-icon>
+                <span class="chapter-title-text" :style="isChapterDone(chapter) ? 'color:#52c41a' : ''">{{ chapter.title }}</span>
+                <el-icon v-if="isChapterDone(chapter)" color="#67c23a" :size="22" style="margin-left:6px"><CircleCheck /></el-icon>
               </div>
             </template>
 
-            <div class="problem-list">
+              <div class="problem-list">
               <div
-                v-for="problem in chapter.problems"
-                :key="problem.id"
+                v-for="section in chapter.sections"
+                :key="section.section_id"
                 class="problem-item"
-                @click="viewProblem(problem)"
+                :class="{ 'problem-item--done': isSectionDone(section) }"
+                @click="viewSection(section)"
               >
                 <div class="problem-left">
                   <el-tag
-                    :type="difficultyType(problem.difficulty)"
+                    :type="section.section_type === 1 ? 'primary' : 'warning'"
                     size="small"
                     class="diff-tag"
-                  >{{ difficultyLabel(problem.difficulty) }}</el-tag>
+                  >{{ section.section_type === 1 ? '算法题' : '讨论' }}</el-tag>
                   <div class="problem-info">
-                    <div class="problem-title">{{ problem.title }}</div>
-                    <div class="problem-tags">
-                      <el-tag
-                        v-for="tag in problem.tags"
-                        :key="tag"
-                        size="small"
-                        plain
-                        type="info"
-                        style="margin-right:4px;margin-top:2px"
-                      >{{ tag }}</el-tag>
+                    <div class="problem-title">{{ section.title }}</div>
+                    <div v-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
+                      {{ section.description }}
                     </div>
                   </div>
                 </div>
                 <div class="problem-right">
-                  <el-icon v-if="problem.solved" color="#67c23a" :size="20"><CircleCheck /></el-icon>
-                  <el-icon v-else color="#c8c9cc" :size="20"><CircleClose /></el-icon>
-                  <span class="time-limit">{{ problem.timeLimit }}ms</span>
+                  <template v-if="section.section_type === 1">
+                    <el-icon
+                      v-if="isSectionDone(section)"
+                      color="#67c23a"
+                      :size="16"
+                      style="margin-right:6px"
+                    ><CircleCheck /></el-icon>
+                    <span v-else class="section-undone-icon"></span>
+                  </template>
                   <el-icon color="#c8c9cc"><ArrowRight /></el-icon>
                 </div>
               </div>
+              <div v-if="!chapter.sections || chapter.sections.length === 0" style="padding:16px 24px;color:#bbb;font-size:13px;text-align:center">暂无小节</div>
             </div>
           </el-collapse-item>
         </el-collapse>
       </div>
     </div>
 
-    <!-- ===== 第三层：题目详情抽屉 ===== -->
+    <!-- ===== 第三层：讨论详情弹窗 ===== -->
+    <el-dialog
+      v-model="showDiscussDetail"
+      title="讨论"
+      width="560px"
+      :destroy-on-close="true"
+    >
+      <div v-if="currentDiscussion" class="discuss-detail-body">
+        <div class="discuss-title">{{ currentDiscussion.title }}</div>
+        <div class="discuss-meta">
+          <el-icon><Timer /></el-icon>
+          <span>发布时间：{{ currentDiscussion.publish_time || currentDiscussion.create_time || '未知' }}</span>
+        </div>
+        <div class="discuss-content">{{ currentDiscussion.content }}</div>
+      </div>
+      <template #footer>
+        <el-button @click="showDiscussDetail = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== 第四层：题目详情抽屉 ===== -->
     <el-drawer
       v-model="showProblemDetail"
       :title="currentProblem ? currentProblem.title : ''"
@@ -281,15 +313,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { studentAPI } from '@/services/index.js'
 import {
   ArrowLeft, ArrowRight, Reading, User, UserFilled,
-  Notebook, CircleCheck, CircleClose, Timer, Coin,
-  InfoFilled, Edit, Loading
+  Notebook, Timer, Coin,
+  InfoFilled, Edit, Loading, CircleCheck
 } from '@element-plus/icons-vue'
+
+// 讨论弹窗
+const showDiscussDetail = ref(false)
+const currentDiscussion = ref(null)
 
 const router = useRouter()
 
@@ -299,6 +335,30 @@ const currentClass = ref(null)
 const currentProblem = ref(null)
 const showProblemDetail = ref(false)
 const activeChapters = ref([])
+
+// 已完成的 problem_id 集合（算法题通过状态）—— 用数组保证响应式
+const acceptedProblemIds = ref([])
+// 总算法题小节数 / 已完成算法题小节数
+const totalSections = ref(0)
+const completedSections = ref(0)
+
+// 当前课程完成度百分比（0-100）
+const progressPercent = computed(() => {
+  if (totalSections.value === 0) return 0
+  return Math.round((completedSections.value / totalSections.value) * 100)
+})
+
+// 判断某小节是否已完成
+const isSectionDone = (section) => {
+  return section.section_type === 1 && section.problem_id && acceptedProblemIds.value.includes(section.problem_id)
+}
+
+// 判断某章节是否全部完成（所有算法题小节都已通过）
+const isChapterDone = (chapter) => {
+  const problemSections = (chapter.sections || []).filter(s => s.section_type === 1 && s.problem_id)
+  if (problemSections.length === 0) return false
+  return problemSections.every(s => acceptedProblemIds.value.includes(s.problem_id))
+}
 
 // 班级列表加载状态
 const classListLoading = ref(true)
@@ -365,30 +425,138 @@ onMounted(() => {
 })
 
 const courseChapters = ref([])
+const chaptersLoading = ref(false)
 
 // 进入班级
-const enterClass = (cls) => {
+const enterClass = async (cls) => {
   currentClass.value = cls
   courseChapters.value = []
   activeChapters.value = []
+  acceptedProblemIds.value = []
+  totalSections.value = 0
+  completedSections.value = 0
   currentView.value = 'catalog'
+  // 调用后端接口加载章节目录
+  chaptersLoading.value = true
+  try {
+    const res = await studentAPI.getClassChapters(cls.id)
+    courseChapters.value = res?.data?.chapters || res?.chapters || []
+
+    // 统计总算法题小节数，收集所有算法题 problem_id
+    let total = 0
+    const problemIds = []
+    for (const chapter of courseChapters.value) {
+      for (const section of (chapter.sections || [])) {
+        if (section.section_type === 1 && section.problem_id) {
+          total++
+          problemIds.push(section.problem_id)
+        }
+      }
+    }
+    totalSections.value = total
+
+    // 批量查询已通过的题目
+    if (problemIds.length > 0) {
+      try {
+        const progressRes = await studentAPI.getCodeProgress(problemIds)
+        const acceptedIds = progressRes?.data?.accepted_problem_ids || progressRes?.accepted_problem_ids || []
+        // section.problem_id 是 varchar 字符串，统一转为字符串比较
+        acceptedProblemIds.value = acceptedIds.map(id => String(id))
+        completedSections.value = acceptedIds.length
+      } catch (e) {
+        console.warn('加载完成状态失败:', e)
+      }
+    }
+  } catch (e) {
+    ElMessage.error('加载章节失败')
+  } finally {
+    chaptersLoading.value = false
+  }
 }
 
-// 查看题目详情
+// 查看小节：算法题调接口查详情展示抽屉，讨论展示讨论弹窗
+const viewSection = async (section) => {
+  if (section.section_type === 1) {
+    // 算法题
+    if (!section.problem_id) {
+      ElMessage.info('题目暂未关联')
+      return
+    }
+    try {
+      const res = await studentAPI.getProblem(section.problem_id)
+      const p = res?.problem
+      if (!p) {
+        ElMessage.error('题目信息获取失败')
+        return
+      }
+      // 解析 tags（逗号分隔的字符串）
+      let tags = []
+      try { tags = p.tags ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : [] } catch { tags = [] }
+
+      // 从 description 中解析输入格式、输出格式
+      const desc = p.description || ''
+      const inputMatch = desc.match(/###\s*输入格式\s*\n([\s\S]*?)(?=###|$)/)
+      const outputMatch = desc.match(/###\s*输出格式\s*\n([\s\S]*?)(?=###|$)/)
+      const inputFormat = inputMatch ? inputMatch[1].trim() : ''
+      const outputFormat = outputMatch ? outputMatch[1].trim() : ''
+      // 去掉 description 中的输入输出格式段落，只保留正文
+      const cleanDesc = desc
+        .replace(/###\s*输入格式\s*\n[\s\S]*?(?=###|$)/, '')
+        .replace(/###\s*输出格式\s*\n[\s\S]*?(?=###|$)/, '')
+        .trim()
+
+      // 从 test_cases 解析样例（is_sample === 1）
+      let samples = []
+      try {
+        const tc = JSON.parse(p.test_cases || '[]')
+        samples = tc
+          .filter(t => t.is_sample === 1)
+          .map(t => ({ input: t.input, output: t.expected_output, explanation: t.explanation || '' }))
+      } catch { samples = [] }
+
+      currentProblem.value = {
+        id: p.id,
+        title: p.title,
+        difficulty: p.difficulty,
+        tags,
+        description: cleanDesc,
+        inputFormat,
+        outputFormat,
+        samples,
+        hint: p.hint || '',
+        timeLimit: p.time_limit || 1000,
+        memoryLimit: p.memory_limit || 256
+      }
+      showProblemDetail.value = true
+    } catch (e) {
+      ElMessage.error('题目信息获取失败')
+    }
+  } else {
+    // 讨论
+    currentDiscussion.value = {
+      title: section.discussion_title || section.title,
+      content: section.discussion_content || section.description || '暂无内容',
+      create_time: section.create_time
+    }
+    showDiscussDetail.value = true
+  }
+}
+
+// 查看题目详情（保留兼容）
 const viewProblem = (problem) => {
   currentProblem.value = problem
   showProblemDetail.value = true
 }
 
-// 难度标签文字
+// 难度标签文字（兼容中英文）
 const difficultyLabel = (diff) => {
-  const map = { easy: '简单', medium: '中等', hard: '困难' }
+  const map = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' }
   return map[diff] || diff
 }
 
-// 难度标签类型
+// 难度标签类型（兼容中英文）
 const difficultyType = (diff) => {
-  const map = { easy: 'success', medium: 'warning', hard: 'danger' }
+  const map = { easy: 'success', medium: 'warning', hard: 'danger', '简单': 'success', '中等': 'warning', '困难': 'danger' }
   return map[diff] || 'info'
 }
 
@@ -647,9 +815,7 @@ const goBack = () => {
     flex: 1;
   }
 
-  .chapter-badge {
-    margin-right: 4px;
-  }
+
 
   .chapter-solved {
     font-size: 12px;
@@ -678,6 +844,13 @@ const goBack = () => {
 
   &:hover {
     background: #f0f4ff;
+  }
+
+  &.problem-item--done {
+    background: #f6ffed;
+    .problem-title {
+      color: #52c41a;
+    }
   }
 
   .problem-left {
@@ -723,6 +896,16 @@ const goBack = () => {
     .time-limit {
       font-size: 12px;
       color: #909399;
+    }
+
+    .section-undone-icon {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #c8c9cc;
+      background: #fff;
+      flex-shrink: 0;
     }
   }
 }
@@ -848,6 +1031,38 @@ const goBack = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 讨论详情 */
+.discuss-detail-body {
+  padding: 4px 0;
+
+  .discuss-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #303133;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  .discuss-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #909399;
+    margin-bottom: 16px;
+  }
+
+  .discuss-content {
+    font-size: 14px;
+    color: #606266;
+    line-height: 1.8;
+    white-space: pre-line;
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 16px;
+  }
 }
 
 /* 空状态 */

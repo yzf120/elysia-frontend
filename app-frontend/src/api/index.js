@@ -174,7 +174,22 @@ export const teacherAPI = {
 
   // 查询公告列表（师生共用）
   getAnnouncements: (classId) =>
-    api.post('/class/announcements', { class_id: classId })
+    api.post('/class/announcements', { class_id: classId }),
+
+  // AI对话接口（SSE流式，返回fetch Response）
+  aiChatStream: async (data, signal) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/teacher/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      signal
+    })
+    return response
+  }
 }
 
 // ==================== 学生接口 ====================
@@ -230,6 +245,14 @@ export const studentAPI = {
   getCodeRunResult: (runId) =>
     api.get('/student/code/result', { params: { run_id: runId } }),
 
+  // 查询学生某题的运行记录列表（最新 10 条，倒序）
+  getCodeRunRecords: (problemId) =>
+    api.get('/student/code/records', { params: { problem_id: problemId } }),
+
+  // 批量查询学生已完全通过的题目ID集合（用于课程目录打钩）
+  getCodeProgress: (problemIds) =>
+    api.get('/student/code/progress', { params: { problem_ids: problemIds.join(',') } }),
+
   // 根据验证码查询班级信息
   getClassByCode: (classCode) =>
     api.get('/class/get-by-code', { params: { class_code: classCode } }),
@@ -240,7 +263,29 @@ export const studentAPI = {
 
   // 查询班级章节列表（含小节，师生共用）
   getClassChapters: (classId) =>
-    api.post('/class/chapters', { class_id: classId })
+    api.post('/class/chapters', { class_id: classId }),
+
+  // 查询班级公告列表（师生共用）
+  getAnnouncements: (classId) =>
+    api.post('/class/announcements', { class_id: classId }),
+
+  // AI答疑接口（SSE流式，返回fetch Response）
+  aiChatStream: async (data, signal) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/student/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      signal
+    })
+    return response
+  },
+
+  // 查询支持的AI模型列表
+  getAIModels: () => api.get('/student/ai/models')
 }
 
 // ==================== 题库接口 ====================

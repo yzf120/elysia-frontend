@@ -99,7 +99,19 @@
                 </el-avatar>
               </div>
               <div class="message-content">
-                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              <div class="message-text">
+                <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
+                <!-- 图片预览 -->
+                <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                  <img
+                    v-for="(imgUrl, imgIdx) in msg.images"
+                    :key="imgIdx"
+                    :src="imgUrl"
+                    class="message-image-preview"
+                    @click="previewImage(imgUrl)"
+                  />
+                </div>
+              </div>
                 <div class="message-time">{{ formatTime(msg.time) }}</div>
               </div>
             </div>
@@ -128,13 +140,35 @@
               type="textarea"
               :rows="3"
               placeholder="输入您的问题..."
-              @keydown.enter.ctrl="sendMessage"
+              @keydown="handleKeydown"
             />
             <div class="input-actions">
-              <el-button type="primary" :loading="isLoading" :disabled="!inputMessage.trim()" @click="sendMessage" class="teacher-btn-primary">
-                <el-icon><Promotion /></el-icon>
-                发送 (Ctrl+Enter)
-              </el-button>
+              <!-- 待发送图片预览 -->
+              <div v-if="pendingImages.length > 0" class="pending-images">
+                <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-image-item">
+                  <img :src="img.dataUrl" class="pending-image-thumb" />
+                  <span class="pending-image-name">{{ img.name }}</span>
+                  <el-icon class="pending-image-remove" @click="removePendingImage(idx)"><Close /></el-icon>
+                </div>
+              </div>
+              <div class="action-left">
+                <el-upload :show-file-list="false" :before-upload="handleFileUpload" accept="image/*" multiple>
+                  <el-button type="text">
+                    <el-icon><Paperclip /></el-icon>
+                    上传图片
+                  </el-button>
+                </el-upload>
+              </div>
+              <div class="action-right">
+                <el-button v-if="!isLoading" type="primary" :disabled="!inputMessage.trim()" @click="sendMessage" class="teacher-btn-primary">
+                  <el-icon><Promotion /></el-icon>
+                  发送
+                </el-button>
+                <el-button v-else type="danger" @click="stopMessage">
+                  <el-icon><VideoPause /></el-icon>
+                  停止
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -165,6 +199,8 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { VideoPause, Paperclip, Close } from '@element-plus/icons-vue';
+import { teacherAPI } from '@/services/index.js';
 
 const router = useRouter();
 
@@ -178,6 +214,52 @@ const messages = ref([]);
 const inputMessage = ref('');
 const isLoading = ref(false);
 const messageArea = ref(null);
+
+// 待发送的图片附件（base64列表）
+const pendingImages = ref([]); // [{dataUrl: 'data:image/...;base64,...', name: 'xxx.png'}]
+
+// 处理图片上传（转base64后附加到消息）
+const handleFileUpload = (file) => {
+  const isImage = file.type.startsWith('image/');
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isImage) {
+    ElMessage.error('目前仅支持上传图片文件（JPG/PNG/GIF/WEBP等）！');
+    return false;
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过10MB！');
+    return false;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingImages.value.push({ dataUrl: e.target.result, name: file.name });
+    ElMessage.success(`图片「${file.name}」已添加，发送消息时将一并发送给AI`);
+  };
+  reader.readAsDataURL(file);
+  return false;
+};
+
+// 移除待发送图片
+const removePendingImage = (index) => {
+  pendingImages.value.splice(index, 1);
+};
+
+// 图片预览
+const previewImage = (url) => {
+  window.open(url, '_blank');
+};
+
+// 中止控制器
+let abortController = null;
+
+// 停止当前对话
+const stopMessage = () => {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  isLoading.value = false;
+};
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
@@ -223,28 +305,105 @@ const loadSession = async (sessionId) => {
   scrollToBottom();
 };
 
+// 处理键盘事件，Ctrl+Enter 发送
+const handleKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault()
+    sendMessage()
+  }
+}
+
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return;
 
-  const userMessage = { role: 'user', content: inputMessage.value, time: new Date().toISOString() };
+  // 构建消息内容：文本 + 图片标记
+  let messageContent = inputMessage.value;
+  const imageSnapshots = [...pendingImages.value];
+  if (imageSnapshots.length > 0) {
+    for (const img of imageSnapshots) {
+      messageContent += `\n[IMAGE:${img.dataUrl}]`;
+    }
+  }
+
+  const userMessage = {
+    role: 'user',
+    content: messageContent,
+    displayContent: inputMessage.value,
+    images: imageSnapshots.map(img => img.dataUrl),
+    time: new Date().toISOString()
+  };
   messages.value.push(userMessage);
   const question = inputMessage.value;
   inputMessage.value = '';
+  pendingImages.value = [];
   isLoading.value = true;
 
   await nextTick();
   scrollToBottom();
 
+  // 构建消息历史（包含图片标记）
+  const historyMessages = messages.value
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }))
+
+  // 预先添加空的 assistant 消息
+  const assistantMsgIdx = messages.value.length
+  messages.value.push({ role: 'assistant', content: '', time: new Date().toISOString() })
+
   try {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const aiMessage = { role: 'assistant', content: `这是对"${question}"的回答...`, time: new Date().toISOString() };
-    messages.value.push(aiMessage);
-    await nextTick();
-    scrollToBottom();
+    abortController = new AbortController();
+    const response = await teacherAPI.aiChatStream({
+      question_type: 'general',
+      messages: historyMessages,
+      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015'
+    }, abortController.signal)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 读取 SSE 流
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') { isLoading.value = false; break }
+          try {
+            const chunk = JSON.parse(data)
+            if (chunk.content) {
+              messages.value[assistantMsgIdx].content += chunk.content
+              await nextTick()
+              scrollToBottom()
+            }
+            if (chunk.is_end) isLoading.value = false
+          } catch (e) { /* 忽略解析错误 */ }
+        }
+      }
+    }
   } catch (error) {
-    ElMessage.error('发送消息失败');
+    if (error?.name === 'AbortError') {
+      // 用户主动终止
+    } else {
+      ElMessage.error('发送消息失败：' + (error?.message || error));
+      if (messages.value[assistantMsgIdx]?.content === '') {
+        messages.value.splice(assistantMsgIdx, 1)
+      }
+    }
   } finally {
     isLoading.value = false;
+    abortController = null;
   }
 };
 
@@ -456,6 +615,24 @@ onMounted(() => {
                 font-size: 15px;
                 line-height: 1.6;
                 max-width: 80%;
+
+                .message-images {
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 8px;
+                  margin-top: 8px;
+
+                  .message-image-preview {
+                    max-width: 200px;
+                    max-height: 200px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    object-fit: cover;
+                    border: 1px solid rgba(0, 0, 0, 0.1);
+                    transition: all 0.2s ease;
+                    &:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+                  }
+                }
               }
 
               .message-time {
@@ -495,10 +672,56 @@ onMounted(() => {
             font-size: 15px;
           }
 
+          // 待发送图片预览区
+          .pending-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+
+            .pending-image-item {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              background: rgba(30, 58, 138, 0.06);
+              border: 1px solid rgba(30, 58, 138, 0.2);
+              border-radius: 8px;
+              padding: 4px 8px 4px 4px;
+
+              .pending-image-thumb {
+                width: 40px;
+                height: 40px;
+                object-fit: cover;
+                border-radius: 6px;
+              }
+
+              .pending-image-name {
+                font-size: 12px;
+                color: #606266;
+                max-width: 100px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              }
+
+              .pending-image-remove {
+                cursor: pointer;
+                color: #909399;
+                font-size: 14px;
+                flex-shrink: 0;
+                &:hover { color: #f56c6c; }
+              }
+            }
+          }
+
           .input-actions {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
+            align-items: center;
             margin-top: 12px;
+
+            .action-left { display: flex; align-items: center; }
+            .action-right { display: flex; align-items: center; }
           }
         }
       }

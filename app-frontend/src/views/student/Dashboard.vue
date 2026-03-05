@@ -74,7 +74,7 @@
               >
                 <div class="announcement-header">
                   <h3>{{ item.title }}</h3>
-                  <van-tag type="success" size="medium">班级</van-tag>
+                <van-tag type="success" size="medium">{{ item.className || '班级' }}</van-tag>
                 </div>
                 <div class="announcement-meta">
                   <span>
@@ -445,47 +445,59 @@ const loadTodoList = async () => {
   }
 }
 
-// 加载班级公告 - 支持分页
+// 加载班级公告（查询该学生所在全部班级的公告，按时间倒序）
 const loadClassAnnouncements = async () => {
   if (classFinished.value) return
-  
+
   classLoading.value = true
-  
+
   try {
-    // TODO: 调用API获取班级公告
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const mockData = [
-      {
-        id: 1,
-        title: '本周课程安排调整通知',
-        teacher: '张老师',
-        publishTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        content: '由于教室调整，本周三的数据结构课程将在A301教室上课，请同学们注意。'
-      },
-      {
-        id: 2,
-        title: '期中考试安排',
-        teacher: '李老师',
-        publishTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        content: '期中考试将于下周五进行，考试范围为第1-5章内容，请同学们认真复习。'
-      }
-    ]
-    
-    if (classPage.value === 1) {
-      classAnnouncements.value = mockData
-    } else {
-      classAnnouncements.value = [...classAnnouncements.value, ...mockData]
-    }
-    
-    if (classPage.value >= 1) {
+    const studentId = localStorage.getItem('userId') || localStorage.getItem('studentId')
+    if (!studentId) {
       classFinished.value = true
-    } else {
-      classPage.value++
+      return
     }
+
+    // 1. 获取学生所在的全部班级
+    const classRes = await studentAPI.getStudentClasses(studentId)
+    const classes = classRes?.data?.classes || classRes?.classes || []
+    if (classes.length === 0) {
+      classAnnouncements.value = []
+      classFinished.value = true
+      return
+    }
+
+    // 2. 并发查询每个班级的公告
+    const results = await Promise.allSettled(
+      classes.map(cls => studentAPI.getAnnouncements(cls.class_id))
+    )
+
+    // 3. 合并所有公告，附加班级名称，按发布时间倒序排列
+    const allAnnouncements = []
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled') {
+        const announcements = result.value?.data?.announcements || result.value?.announcements || []
+        announcements.forEach(item => {
+          allAnnouncements.push({
+            id: item.announcement_id || item.id,
+            title: item.title,
+            teacher: item.teacher_name || item.teacher || '',
+            publishTime: item.created_at || item.publish_time || item.publishTime,
+            content: item.content,
+            className: classes[idx]?.class_name || ''
+          })
+        })
+      }
+    })
+
+    // 按发布时间倒序
+    allAnnouncements.sort((a, b) => new Date(b.publishTime) - new Date(a.publishTime))
+
+    classAnnouncements.value = allAnnouncements
+    classFinished.value = true
   } catch (error) {
     console.error('加载班级公告失败:', error)
-    showToast('加载失败')
+    showToast('加载班级公告失败')
   } finally {
     classLoading.value = false
   }

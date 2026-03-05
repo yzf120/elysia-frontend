@@ -29,8 +29,20 @@
             :class="msg.role"
           >
             <div class="msg-avatar">{{ msg.role === 'user' ? '👨‍🏫' : '🤖' }}</div>
-            <div class="msg-bubble">
-              <div class="msg-text" v-html="formatMessage(msg.content)"></div>
+      <div class="msg-bubble">
+              <div class="msg-text">
+                <span v-html="formatMessage(msg.displayContent || msg.content)"></span>
+                <!-- 图片预览 -->
+                <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                  <img
+                    v-for="(imgUrl, imgIdx) in msg.images"
+                    :key="imgIdx"
+                    :src="imgUrl"
+                    class="message-image-preview"
+                    @click="previewImage(imgUrl)"
+                  />
+                </div>
+              </div>
               <div class="msg-time">{{ formatTime(msg.time) }}</div>
             </div>
           </div>
@@ -49,21 +61,35 @@
 
       <!-- 输入区 -->
       <div class="input-area">
-        <van-field
-          v-model="inputMessage"
-          type="textarea"
-          rows="2"
-          autosize
-          placeholder="输入您的问题..."
-          class="input-field"
-        />
-        <van-button
-          type="primary"
-          :loading="isLoading"
-          :disabled="!inputMessage.trim()"
-          @click="sendMessage"
-          class="send-btn"
-        >发送</van-button>
+        <!-- 待发送图片预览 -->
+        <div v-if="pendingImages.length > 0" class="pending-images">
+          <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-image-item">
+            <img :src="img.dataUrl" class="pending-image-thumb" />
+            <van-icon name="cross" size="14" class="pending-image-remove" @click="removePendingImage(idx)" />
+          </div>
+        </div>
+        <div class="input-row">
+          <van-field
+            v-model="inputMessage"
+            type="textarea"
+            rows="2"
+            autosize
+            placeholder="输入您的问题..."
+            class="input-field"
+          />
+          <div class="input-btns">
+            <van-uploader :after-read="handleFileUpload" :max-count="5" accept="image/*">
+              <van-button size="small" icon="photograph" class="upload-btn" />
+            </van-uploader>
+            <van-button
+              type="primary"
+              :loading="isLoading"
+              :disabled="!inputMessage.trim()"
+              @click="sendMessage"
+              class="send-btn"
+            >发送</van-button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -72,12 +98,43 @@
 <script setup>
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { showToast } from 'vant'
+import { teacherAPI } from '../../api/index.js'
 
 const teacherName = ref(localStorage.getItem('userName') || '教师')
 const messages = ref([])
 const inputMessage = ref('')
 const isLoading = ref(false)
 const messageAreaRef = ref(null)
+
+// 中止控制器
+let abortController = null
+
+// 待发送的图片附件
+const pendingImages = ref([]) // [{dataUrl: 'data:image/...;base64,...', name: 'xxx.png'}]
+
+// 处理图片上传
+const handleFileUpload = (file) => {
+  const isImage = file.file.type.startsWith('image/')
+  const isLt10M = file.file.size / 1024 / 1024 < 10
+  if (!isImage) { showToast('目前仅支持上传图片！'); return }
+  if (!isLt10M) { showToast('图片大小不能超过10MB！'); return }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    pendingImages.value.push({ dataUrl: e.target.result, name: file.file.name })
+    showToast(`图片「${file.file.name}」已添加`)
+  }
+  reader.readAsDataURL(file.file)
+}
+
+// 移除待发送图片
+const removePendingImage = (index) => {
+  pendingImages.value.splice(index, 1)
+}
+
+// 图片预览
+const previewImage = (url) => {
+  window.open(url, '_blank')
+}
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -122,26 +179,90 @@ const quickAction = (type) => {
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return
 
-  const userMsg = { role: 'user', content: inputMessage.value, time: new Date().toISOString() }
+  // 构建消息内容：文本 + 图片标记
+  let messageContent = inputMessage.value
+  const imageSnapshots = [...pendingImages.value]
+  if (imageSnapshots.length > 0) {
+    for (const img of imageSnapshots) {
+      messageContent += `\n[IMAGE:${img.dataUrl}]`
+    }
+  }
+
+  const userMsg = {
+    role: 'user',
+    content: messageContent,
+    displayContent: inputMessage.value,
+    images: imageSnapshots.map(img => img.dataUrl),
+    time: new Date().toISOString()
+  }
   messages.value.push(userMsg)
-  const question = inputMessage.value
   inputMessage.value = ''
+  pendingImages.value = []
   isLoading.value = true
   await scrollToBottom()
 
+  // 构建消息历史（包含图片标记）
+  const historyMessages = messages.value
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }))
+
+  // 预先添加空的 assistant 消息，用于流式填充
+  const assistantMsgIdx = messages.value.length
+  messages.value.push({ role: 'assistant', content: '', time: new Date().toISOString() })
+
   try {
-    // TODO: 调用AI接口
-    await new Promise(r => setTimeout(r, 1500))
-    messages.value.push({
-      role: 'assistant',
-      content: `您好！关于"${question}"，我来为您解答...\n\n这是AI生成的回答内容，实际使用时将调用真实的AI接口。`,
-      time: new Date().toISOString()
-    })
-    await scrollToBottom()
-  } catch {
-    showToast({ type: 'fail', message: '发送失败，请重试' })
+    abortController = new AbortController()
+    const response = await teacherAPI.aiChatStream({
+      question_type: 'general',
+      messages: historyMessages,
+      model_id: 'doubao-seed-1-6-lite-251015'
+    }, abortController.signal)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') { isLoading.value = false; break }
+          try {
+            const chunk = JSON.parse(data)
+            if (chunk.content) {
+              messages.value[assistantMsgIdx].content += chunk.content
+              await nextTick()
+              scrollToBottom()
+            }
+            if (chunk.is_end) isLoading.value = false
+          } catch (e) { /* 忽略解析错误 */ }
+        }
+      }
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      // 用户主动终止
+    } else {
+      showToast({ type: 'fail', message: '发送失败，请重试' })
+      if (messages.value[assistantMsgIdx]?.content === '') {
+        messages.value.splice(assistantMsgIdx, 1)
+      }
+    }
   } finally {
     isLoading.value = false
+    abortController = null
   }
 }
 
@@ -288,12 +409,52 @@ onMounted(() => {
 }
 
 .input-area {
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  padding: 8px 0 0;
+}
+
+.pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 8px;
+}
+
+.pending-image-item {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.pending-image-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.pending-image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #f56c6c;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.input-row {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 12px;
-  background: #fff;
-  border-top: 1px solid #f0f0f0;
+  padding: 0 12px 10px;
 }
 
 .input-field {
@@ -302,10 +463,41 @@ onMounted(() => {
   border-radius: 10px;
 }
 
-.send-btn {
+.input-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.upload-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f5f5f5;
+  border: 1px solid #e8e8e8;
+}
+
+.send-btn {
   height: 40px;
   padding: 0 16px;
   border-radius: 10px;
+}
+
+/* 消息中的图片预览 */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.message-image-preview {
+  max-width: 150px;
+  max-height: 150px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 </style>

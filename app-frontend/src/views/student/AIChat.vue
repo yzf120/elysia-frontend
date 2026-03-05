@@ -107,6 +107,15 @@
                 </van-dropdown-menu>
               </template>
             </van-cell>
+            <!-- 当前模型描述 -->
+            <van-cell v-if="currentModelDesc" class="model-desc-cell">
+              <template #title>
+                <div class="model-desc-row">
+                  <van-icon name="info-o" size="14" color="#667eea" />
+                  <span class="model-desc-text">{{ currentModelDesc }}</span>
+                </div>
+              </template>
+            </van-cell>
             <van-cell title="联网搜索" class="setting-cell">
               <template #icon>
                 <van-icon name="search" color="#67c23a" size="18" />
@@ -118,7 +127,7 @@
                 <van-switch v-model="enableWebSearch" size="22" active-color="#67c23a" />
               </template>
             </van-cell>
-            <van-cell title="深度思考" class="setting-cell">
+            <van-cell title="深度思考" class="setting-cell" v-if="!isQwenModel">
               <template #icon>
                 <van-icon name="bulb-o" color="#e6a23c" size="18" />
               </template>
@@ -127,6 +136,14 @@
               </template>
               <template #right-icon>
                 <van-switch v-model="enableDeepThink" size="22" active-color="#e6a23c" />
+              </template>
+            </van-cell>
+            <van-cell title="深度思考" class="setting-cell" v-else>
+              <template #icon>
+                <van-icon name="bulb-o" color="#e6a23c" size="18" />
+              </template>
+              <template #value>
+                <span class="setting-desc qwen-auto-tip">模型自动决定是否开启思考模式</span>
               </template>
             </van-cell>
           </van-cell-group>
@@ -184,7 +201,28 @@
               </div>
             </div>
             <div class="message-content">
-              <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              <!-- 深度思考内容区块 -->
+              <div v-if="msg.thinkContent" class="think-block">
+                <div class="think-header" @click="msg.thinkExpanded = !msg.thinkExpanded">
+                  <span class="think-icon">🧠</span>
+                  <span class="think-title">思考过程</span>
+                  <span class="think-toggle">{{ msg.thinkExpanded ? '收起' : '展开' }}</span>
+                </div>
+                <div v-show="msg.thinkExpanded" class="think-content" v-html="formatMessage(msg.thinkContent)"></div>
+              </div>
+              <div class="message-text">
+                <span v-html="formatMessage(msg.displayContent || msg.content)"></span>
+                <!-- 图片预览 -->
+                <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                  <img
+                    v-for="(imgUrl, imgIdx) in msg.images"
+                    :key="imgIdx"
+                    :src="imgUrl"
+                    class="message-image-preview"
+                    @click="previewImage(imgUrl)"
+                  />
+                </div>
+              </div>
               <div class="message-time">
                 <van-icon name="clock-o" size="10" />
                 {{ formatTime(msg.time) }}
@@ -213,32 +251,41 @@
       <!-- 底部输入区 - 优化设计 -->
       <div class="input-area">
         <div class="input-container">
-          <van-field
-            v-model="inputMessage"
-            type="textarea"
-            rows="1"
-            autosize
-            placeholder="输入您的问题，AI助教随时为您解答..."
-            :disabled="isLoading"
-            class="message-input"
-          />
-          <div class="input-actions">
-            <van-uploader :after-read="handleFileUpload" :max-count="1" class="upload-btn">
-              <div class="action-icon">
-                <van-icon name="photograph" size="22" />
-              </div>
-            </van-uploader>
-            <van-button
-              round
-              :loading="isLoading"
-              :disabled="!inputMessage.trim()"
-              @click="sendMessage"
-              class="send-btn"
-              :class="{ active: inputMessage.trim() }"
-            >
-              <van-icon name="guide-o" size="18" v-if="!isLoading" />
-              <span v-if="!isLoading">发送</span>
-            </van-button>
+          <!-- 待发送图片预览 -->
+          <div v-if="pendingImages.length > 0" class="pending-images">
+            <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-image-item">
+              <img :src="img.dataUrl" class="pending-image-thumb" />
+              <van-icon name="cross" size="14" class="pending-image-remove" @click="removePendingImage(idx)" />
+            </div>
+          </div>
+          <div class="input-row">
+            <van-field
+              v-model="inputMessage"
+              type="textarea"
+              rows="1"
+              autosize
+              placeholder="输入您的问题，AI助教随时为您解答..."
+              :disabled="isLoading"
+              class="message-input"
+            />
+            <div class="input-actions">
+              <van-uploader :after-read="handleFileUpload" :max-count="5" accept="image/*" class="upload-btn">
+                <div class="action-icon">
+                  <van-icon name="photograph" size="22" />
+                </div>
+              </van-uploader>
+              <van-button
+                round
+                :loading="isLoading"
+                :disabled="!inputMessage.trim()"
+                @click="sendMessage"
+                class="send-btn"
+                :class="{ active: inputMessage.trim() }"
+              >
+                <van-icon name="guide-o" size="18" v-if="!isLoading" />
+                <span v-if="!isLoading">发送</span>
+              </van-button>
+            </div>
           </div>
         </div>
       </div>
@@ -285,9 +332,15 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showDialog } from 'vant'
+import { studentAPI } from '../../api/index.js'
 
 const router = useRouter()
 const route = useRoute()
+
+// 图片预览
+const previewImage = (url) => {
+  window.open(url, '_blank')
+}
 
 // 学生信息
 const studentName = ref(localStorage.getItem('userName') || '同学')
@@ -303,21 +356,63 @@ const currentSessionId = ref(null)
 const activeCollapse = ref('')
 
 // 模型配置
-const selectedModel = ref('deepseek')
-const modelOptions = [
-  { text: 'DeepSeek', value: 'deepseek' },
-  { text: '豆包', value: 'doubao' },
-  { text: '通义千问', value: 'qwen' },
-  { text: 'Gemini 3', value: 'gemini3' }
-]
+const selectedModel = ref('')
+const modelOptions = ref([])
+const modelsLoading = ref(false)
 const enableWebSearch = ref(false)
 const enableDeepThink = ref(false)
+
+// 加载模型列表
+const loadModels = async () => {
+  modelsLoading.value = true
+  try {
+    const res = await studentAPI.getAIModels()
+    const models = res?.data?.models || []
+    modelOptions.value = models.map(m => ({ text: m.model_name, value: m.model_id, description: m.description }))
+    if (models.length > 0 && !selectedModel.value) {
+      selectedModel.value = models[0].model_id
+    }
+  } catch (e) {
+    console.error('加载模型列表失败:', e)
+    modelOptions.value = [
+      { text: 'Doubao-Seed-1.6-lite', value: 'doubao-seed-1-6-lite-251015' },
+      { text: 'Qwen3-Omni-Flash', value: 'qwen3-omni-flash' }
+    ]
+    if (!selectedModel.value) selectedModel.value = 'doubao-seed-1-6-lite-251015'
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+// 当前选中模型的描述
+const currentModelDesc = computed(() => {
+  const m = modelOptions.value.find(m => m.value === selectedModel.value)
+  return m?.description || ''
+})
+
+// 是否为千问模型
+const isQwenModel = computed(() => selectedModel.value.includes('qwen'))
 
 // 消息相关
 const messages = ref([])
 const inputMessage = ref('')
 const isLoading = ref(false)
 const messageArea = ref(null)
+
+// 中止控制器（用于终止流式请求）
+let abortController = null
+
+// 停止当前对话
+const stopMessage = () => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+  isLoading.value = false
+}
+
+// 待发送的图片附件
+const pendingImages = ref([]) // [{dataUrl: 'data:image/...;base64,...', name: 'xxx.png'}]
 
 // 操作菜单
 const showActionSheet = ref(false)
@@ -410,49 +505,171 @@ const loadSession = async (sessionId) => {
   }
 }
 
-// 发送消息
+// 发送消息（SSE流式）
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return
 
+  // 构建消息内容：文本 + 图片标记
+  let messageContent = inputMessage.value
+  const imageSnapshots = [...pendingImages.value]
+  if (imageSnapshots.length > 0) {
+    for (const img of imageSnapshots) {
+      messageContent += `\n[IMAGE:${img.dataUrl}]`
+    }
+  }
+
   const userMessage = {
     role: 'user',
-    content: inputMessage.value,
+    content: messageContent,
+    displayContent: inputMessage.value,
+    images: imageSnapshots.map(img => img.dataUrl),
     time: new Date().toISOString()
   }
 
   messages.value.push(userMessage)
-  const question = inputMessage.value
   inputMessage.value = ''
+  pendingImages.value = []
   isLoading.value = true
 
   await nextTick()
   scrollToBottom()
 
-  try {
-    // TODO: 调用AI API
-    await new Promise(resolve => setTimeout(resolve, 2000))
+  // 构建消息历史（包含图片标记）
+  const historyMessages = messages.value
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }))
 
-    const aiMessage = {
-      role: 'assistant',
-      content: `这是对"${question}"的回答。我理解您的问题，让我为您详细解答...`,
-      time: new Date().toISOString()
+  // 预先添加空的 assistant 消息
+  const assistantMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    thinkContent: '',
+    thinkExpanded: true,
+    time: new Date().toISOString()
+  })
+
+  try {
+    abortController = new AbortController()
+    const response = await studentAPI.aiChatStream({
+      question_type: 'general',
+      messages: historyMessages,
+      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
+      enable_thinking: enableDeepThink.value
+    }, abortController.signal)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(errText || `HTTP ${response.status}`)
     }
 
-    messages.value.push(aiMessage)
-    await nextTick()
-    scrollToBottom()
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let thinkBuf = ''
+    let inThink = false
+
+    const processChunkContent = (raw) => {
+      thinkBuf += raw
+      const msg = messages.value[assistantMsgIdx]
+      while (thinkBuf.length > 0) {
+        if (inThink) {
+          const endIdx = thinkBuf.indexOf('</think>')
+          if (endIdx !== -1) {
+            msg.thinkContent += thinkBuf.slice(0, endIdx)
+            thinkBuf = thinkBuf.slice(endIdx + 8)
+            inThink = false
+          } else {
+            const safe = thinkBuf.length > 7 ? thinkBuf.slice(0, thinkBuf.length - 7) : ''
+            if (safe) { msg.thinkContent += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        } else {
+          const startIdx = thinkBuf.indexOf('<think>')
+          if (startIdx !== -1) {
+            msg.content += thinkBuf.slice(0, startIdx)
+            thinkBuf = thinkBuf.slice(startIdx + 7)
+            inThink = true
+          } else {
+            const safe = thinkBuf.length > 6 ? thinkBuf.slice(0, thinkBuf.length - 6) : ''
+            if (safe) { msg.content += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        }
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        if (thinkBuf) {
+          const msg = messages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') { isLoading.value = false; break }
+          try {
+            const chunk = JSON.parse(data)
+            if (chunk.content) {
+              processChunkContent(chunk.content)
+              await nextTick()
+              scrollToBottom()
+            }
+            if (chunk.is_end) isLoading.value = false
+          } catch (e) { /* 忽略 */ }
+        }
+      }
+    }
   } catch (error) {
     console.error('发送消息失败:', error)
-    showToast('发送消息失败')
+    if (error?.name === 'AbortError') {
+      // 用户主动终止，不提示错误
+    } else {
+      showToast('发送消息失败')
+      if (messages.value[assistantMsgIdx]?.content === '' && !messages.value[assistantMsgIdx]?.thinkContent) {
+        messages.value.splice(assistantMsgIdx, 1)
+      }
+    }
   } finally {
     isLoading.value = false
+    abortController = null
   }
 }
 
-// 处理文件上传
+// 处理文件上传（图片转base64后附加到消息）
 const handleFileUpload = (file) => {
-  showToast('文件上传成功，正在识别...')
-  // TODO: 上传文件并OCR识别
+  const isImage = file.file.type.startsWith('image/')
+  const isLt10M = file.file.size / 1024 / 1024 < 10
+  if (!isImage) {
+    showToast('目前仅支持上传图片文件！')
+    return
+  }
+  if (!isLt10M) {
+    showToast('图片大小不能超过10MB！')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    pendingImages.value.push({ dataUrl: e.target.result, name: file.file.name })
+    showToast(`图片「${file.file.name}」已添加`)
+  }
+  reader.readAsDataURL(file.file)
+}
+
+// 移除待发送图片
+const removePendingImage = (index) => {
+  pendingImages.value.splice(index, 1)
 }
 
 // 操作菜单选择
@@ -588,6 +805,7 @@ watch(() => route.query.question, (question) => {
 // 页面加载
 onMounted(() => {
   loadSessions()
+  loadModels()  // 加载模型列表
 })
 </script>
 
@@ -823,6 +1041,28 @@ onMounted(() => {
   margin-right: 8px;
 }
 
+.qwen-auto-tip {
+  font-style: italic;
+  margin-right: 0;
+}
+
+.model-desc-cell {
+  background: rgba(102, 126, 234, 0.04) !important;
+  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+}
+
+.model-desc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-desc-text {
+  font-size: 12px;
+  color: #667eea;
+  line-height: 1.5;
+}
+
 :deep(.setting-cell .van-icon) {
   margin-right: 10px;
 }
@@ -908,6 +1148,44 @@ onMounted(() => {
 
 .tip-item .van-icon {
   color: #667eea;
+}
+
+/* 深度思考区块 */
+.think-block {
+  max-width: 75%;
+  margin-bottom: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.think-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: rgba(102, 126, 234, 0.08);
+  user-select: none;
+}
+
+.think-header:active {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+.think-icon { font-size: 14px; }
+.think-title { font-size: 13px; font-weight: 600; color: #667eea; flex: 1; }
+.think-toggle { font-size: 12px; color: #909399; }
+
+.think-content {
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #606266;
+  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* ==================== 消息列表 ==================== */
@@ -1088,8 +1366,70 @@ onMounted(() => {
   }
 }
 
-/* ==================== 输入区域 ==================== */
-.input-area {
+/* 待发送图片预览 */
+.pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.pending-image-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.pending-image-thumb {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.pending-image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #f56c6c;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* 消息中的图片预览 */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.message-image-preview {
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 输入行布局 */
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
   background: white;
   border-top: 1px solid #f0f0f0;
   padding: 12px;

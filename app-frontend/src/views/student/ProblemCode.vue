@@ -163,7 +163,7 @@
               </div>
             </div>
             <div class="record-detail" v-if="record.message">
-              <pre class="record-message">{{ record.message }}</pre>
+              <pre :class="['record-message', record.status === 'accepted' ? 'record-message--success' : 'record-message--error']">{{ record.message }}</pre>
             </div>
             <div class="record-code-toggle" @click="toggleRecordCode(record)">
               <van-icon :name="record.showCode ? 'arrow-up' : 'arrow-down'" />
@@ -253,12 +253,12 @@
             </div>
           </div>
 
-          <!-- 结果面板 -->
+          <!-- 结果弹窗 -->
           <van-popup
             v-model:show="showResult"
             position="bottom"
             round
-            :style="{ height: '45%' }"
+            :style="{ height: '55%' }"
           >
             <div class="result-popup">
               <div class="result-header">
@@ -266,10 +266,48 @@
                 <van-icon name="cross" @click="showResult = false" />
               </div>
               <div class="result-body">
-                <van-tag :type="resultStatus === 'success' ? 'success' : 'danger'" size="medium">
-                  {{ resultStatus === 'success' ? '通过' : '错误' }}
-                </van-tag>
-                <pre class="result-output">{{ resultOutput }}</pre>
+                <!-- 测试模式：可视化 case 列表 -->
+                <template v-if="testCaseResults.length > 0">
+                  <div
+                    v-for="tc in testCaseResults"
+                    :key="tc.index"
+                    class="test-case-item"
+                    :class="tc.passed ? 'case-pass' : 'case-fail'"
+                  >
+                    <div class="case-header">
+                      <span class="case-icon">{{ tc.passed ? '✓' : '✗' }}</span>
+                      <span class="case-title">样例 {{ tc.index }}</span>
+                      <van-tag :type="tc.passed ? 'success' : 'danger'" size="mini" style="margin-left:auto">
+                        {{ tc.passed ? '通过' : (tc.status === 'wrong_answer' ? '答案错误' : tc.status === 'runtime_error' ? '运行错误' : tc.status === 'time_limit_exceeded' ? '超时' : tc.status === 'compile_error' ? '编译错误' : '错误') }}
+                      </van-tag>
+                      <span v-if="tc.time_cost" class="case-time">{{ tc.time_cost }}ms</span>
+                    </div>
+                    <div class="case-body">
+                      <div class="case-row">
+                        <div class="case-col">
+                          <div class="case-label">输入</div>
+                          <pre class="case-code">{{ tc.input }}</pre>
+                        </div>
+                        <div class="case-col">
+                          <div class="case-label">预期输出</div>
+                          <pre class="case-code case-expected">{{ tc.expected_output }}</pre>
+                        </div>
+                        <div class="case-col">
+                          <div class="case-label">实际输出</div>
+                          <pre class="case-code" :class="tc.passed ? 'case-actual-pass' : 'case-actual-fail'">{{ tc.actual_output || (tc.error_msg ? '(运行出错)' : '(无输出)') }}</pre>
+                        </div>
+                      </div>
+                      <div v-if="tc.error_msg" class="case-error-msg">{{ tc.error_msg }}</div>
+                    </div>
+                  </div>
+                </template>
+                <!-- 运行模式 / 编译错误等：普通文本展示 -->
+                <template v-else>
+                  <van-tag :type="resultStatus === 'success' ? 'success' : 'danger'" size="medium">
+                    {{ resultStatus === 'success' ? '通过' : '错误' }}
+                  </van-tag>
+                  <pre class="result-output">{{ resultOutput }}</pre>
+                </template>
               </div>
             </div>
           </van-popup>
@@ -278,6 +316,152 @@
       </van-tab>
 
     </van-tabs>
+
+    <!-- AI 答疑悬浮按钮 -->
+    <div class="ai-fab" @click="openAIChat">
+      <span class="ai-fab-icon">🤖</span>
+      <span class="ai-fab-text">AI答疑</span>
+    </div>
+
+    <!-- AI 答疑底部弹出面板 -->
+    <van-popup
+      v-model:show="aiPopupVisible"
+      position="bottom"
+      round
+      :style="{ height: '80%' }"
+      class="ai-popup"
+    >
+      <div class="ai-popup-inner">
+        <!-- 头部 -->
+        <div class="ai-popup-header">
+          <div class="ai-popup-title">
+            <span>🤖</span>
+            <span>AI 答疑助手</span>
+          </div>
+          <div class="ai-popup-actions">
+            <van-button size="mini" plain @click="clearAIChat">清空</van-button>
+            <van-icon name="cross" size="20" @click="aiPopupVisible = false" />
+          </div>
+        </div>
+
+        <!-- 题目上下文提示 -->
+        <div v-if="problem.title" class="ai-context-tip">
+          📌 当前题目：<strong>{{ problem.title }}</strong>
+        </div>
+
+        <!-- 模型选择器 -->
+        <div class="ai-model-selector">
+          <div class="ai-model-selector-top">
+            <span class="ai-model-label">🤖 模型</span>
+            <van-dropdown-menu class="ai-model-dropdown" active-color="#667eea">
+              <van-dropdown-item
+                v-model="aiSelectedModel"
+                :options="aiModels.map(m => ({ text: m.model_name, value: m.model_id }))"
+              />
+            </van-dropdown-menu>
+            <span v-if="aiModelsLoading" class="ai-model-loading">加载中...</span>
+          </div>
+          <!-- 当前模型描述 -->
+          <div v-if="currentAIModelDesc" class="ai-model-desc-bar">
+            <span>ℹ️</span>
+            <span>{{ currentAIModelDesc }}</span>
+          </div>
+          <!-- 深度思考开关 -->
+          <div class="ai-deep-think-row" v-if="!isQwenModel">
+            <span class="ai-model-label">🧠 深度思考</span>
+            <van-switch v-model="aiDeepThink" size="22" active-color="#667eea" />
+          </div>
+          <div class="ai-deep-think-row" v-else>
+            <span class="ai-model-label">🧠 深度思考</span>
+            <span class="qwen-auto-tip">模型自动决定是否开启思考模式</span>
+          </div>
+        </div>
+        <div class="ai-messages" ref="aiMessagesEl">
+          <div v-if="aiMessages.length === 0" class="ai-welcome">
+            <div class="ai-welcome-icon">🤖</div>
+            <div class="ai-welcome-text">你好！我是AI答疑助手</div>
+            <div class="ai-welcome-sub">可以问我关于这道题的任何问题，支持粘贴代码和截图</div>
+          </div>
+          <div
+            v-for="(msg, idx) in aiMessages"
+            :key="idx"
+            class="ai-msg-item"
+            :class="msg.role"
+          >
+            <div class="ai-msg-avatar">
+              <span v-if="msg.role === 'user'">👤</span>
+              <span v-else>🤖</span>
+            </div>
+            <div class="ai-msg-bubble">
+              <img v-if="msg.type === 'image'" :src="msg.content" class="ai-msg-image" />
+              <template v-else>
+                <div v-if="msg.thinkContent" class="ai-think-block">
+                  <div class="ai-think-header" @click="msg.thinkExpanded = !msg.thinkExpanded">
+                    <span class="ai-think-icon">🧠</span>
+                    <span class="ai-think-title">思考过程</span>
+                    <span class="ai-think-toggle">{{ msg.thinkExpanded ? '收起' : '展开' }}</span>
+                  </div>
+                  <div v-show="msg.thinkExpanded" class="ai-think-content" v-html="formatAIMessage(msg.thinkContent)"></div>
+                </div>
+                <div class="ai-msg-text" v-html="formatAIMessage(msg.displayContent || msg.content)"></div>
+              </template>
+              <div class="ai-msg-time">{{ msg.time }}</div>
+            </div>
+          </div>
+          <div v-if="aiLoading" class="ai-msg-item assistant">
+            <div class="ai-msg-avatar">🤖</div>
+            <div class="ai-msg-bubble">
+              <div class="ai-loading-dots"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="ai-input-area">
+          <div v-if="aiPendingImages.length > 0" class="ai-pending-images">
+            <div
+              v-for="(img, idx) in aiPendingImages"
+              :key="idx"
+              class="ai-pending-img-wrap"
+            >
+              <img :src="img" class="ai-pending-img" />
+              <span class="ai-pending-img-remove" @click="removeAIPendingImage(idx)">×</span>
+            </div>
+          </div>
+          <div class="ai-input-row">
+          <textarea
+              v-model="aiInputText"
+              class="ai-textarea"
+              placeholder="输入问题，支持粘贴代码/截图"
+              rows="3"
+              @keydown="handleAIKeydown"
+              @paste="onAIPaste"
+            ></textarea>
+          </div>
+          <div class="ai-input-footer">
+            <div class="ai-input-footer-left">
+              <span class="ai-input-hint">支持粘贴代码和截图</span>
+              <van-uploader :after-read="handleAIImageUpload" :max-count="5" accept="image/*">
+                <van-button size="mini" icon="photograph" plain type="primary" class="ai-upload-btn">上传图片</van-button>
+              </van-uploader>
+            </div>
+            <van-button
+              v-if="!aiLoading"
+              type="primary"
+              size="small"
+              :disabled="!canSendAI"
+              @click="sendAIMessage"
+            >发送</van-button>
+            <van-button
+              v-else
+              type="danger"
+              size="small"
+              @click="stopAIMessage"
+            >⏸ 停止</van-button>
+          </div>
+        </div>
+      </div>
+    </van-popup>
 
   </div>
 </template>
@@ -313,29 +497,55 @@ const problem = ref({
 
 // 将后端题目数据适配为前端格式
 function adaptProblem(raw) {
-  // 解析 test_cases JSON 字符串为 samples 数组
+  // 解析 tags 字符串为数组
+  const tags = raw.tags ? raw.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+
+  // 从 description 中解析输入格式、输出格式（### 输入格式 / ### 输出格式 段落）
+  const desc = raw.description || ''
+  const inputMatch = desc.match(/###\s*输入格式\s*\n([\s\S]*?)(?=###|$)/)
+  const outputMatch = desc.match(/###\s*输出格式\s*\n([\s\S]*?)(?=###|$)/)
+  const inputFormat = inputMatch ? inputMatch[1].trim() : ''
+  const outputFormat = outputMatch ? outputMatch[1].trim() : ''
+  // 去掉 description 中的输入输出格式段落，只保留正文
+  const cleanDesc = desc
+    .replace(/###\s*输入格式\s*\n[\s\S]*?(?=###|$)/, '')
+    .replace(/###\s*输出格式\s*\n[\s\S]*?(?=###|$)/, '')
+    .trim()
+
+  // 从 showcase 字段解析展示样例（优先），fallback 到 test_cases 的 is_sample=1
   let samples = []
   try {
-    const cases = JSON.parse(raw.test_cases || '[]')
-    samples = cases.map(c => ({ input: c.input || '', output: c.output || '', explanation: c.explanation || '' }))
+    const showcaseCases = JSON.parse(raw.showcase || '[]')
+    if (showcaseCases.length > 0) {
+      samples = showcaseCases.map(c => ({
+        input: c.input || '',
+        output: c.expected_output || c.output || '',
+        explanation: c.explanation || ''
+      }))
+    } else {
+      // fallback: 从 test_cases 取 is_sample=1
+      const cases = JSON.parse(raw.test_cases || '[]')
+      samples = cases
+        .filter(c => c.is_sample === 1)
+        .map(c => ({ input: c.input || '', output: c.expected_output || c.output || '', explanation: c.explanation || '' }))
+    }
   } catch (e) {
     samples = []
   }
-  // 解析 tags 字符串为数组
-  const tags = raw.tags ? raw.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-  // 将中文难度转换为英文（匹配 CSS 类名）
-  const diffMap = { '简单': 'easy', '中等': 'medium', '困难': 'hard' }
-  const difficulty = diffMap[raw.difficulty] || raw.difficulty || ''
+
+  // 难度保持中文（CSS 类名兼容中文）
+  const difficulty = raw.difficulty || ''
+
   return {
     id: raw.id,
     title: raw.title || '',
     difficulty,
     tags,
-    timeLimit: 1000,
-    memoryLimit: 256,
-    description: raw.description || '',
-    inputFormat: '',
-    outputFormat: '',
+    timeLimit: raw.time_limit || 1000,
+    memoryLimit: raw.memory_limit || 256,
+    description: cleanDesc,
+    inputFormat,
+    outputFormat,
     samples,
     hint: raw.hint || ''
   }
@@ -659,6 +869,8 @@ const showResult = ref(false)
 const resultTitle = ref('测试结果')
 const resultStatus = ref('success')
 const resultOutput = ref('')
+// 测试模式的 case 详细结果
+const testCaseResults = ref([])
 
 // 滚动条滑块样式
 const thumbVStyle = ref({ top: '0px', height: '40px', opacity: '0' })
@@ -1031,9 +1243,8 @@ const onTest = async () => {
   showResult.value = true
 
   try {
-    // 取第一个样例的输入作为测试输入
-    const testInput = (problem.value.samples && problem.value.samples[0]?.input) || ''
-    const submitRes = await studentAPI.submitCodeRun(pid, selectedLang.value, code.value, 'test', testInput)
+    // 使用 run_type=test，后端会从 showcase 字段取用例执行
+    const submitRes = await studentAPI.submitCodeRun(pid, selectedLang.value, code.value, 'test', '')
     const runId = submitRes?.data?.run_id || submitRes?.run_id
     if (!runId) {
       resultOutput.value = '提交失败：' + (submitRes?.message || '未知错误')
@@ -1042,37 +1253,47 @@ const onTest = async () => {
       return
     }
 
-    // 轮询结果
+    // 轮询结果（测试模式不记录到运行记录）
     pollCodeRunResult(runId, (result) => {
       isRunning.value = false
-      const statusInfo = RUN_STATUS_MAP[result.status] || { statusKey: 're', message: '未知状态' }
       const timeCost = result.time_cost || 0
       const memUsed = result.memory_used ? (result.memory_used / 1024).toFixed(1) : null
 
-      addRunRecord(statusInfo.statusKey, {
-        timeCost,
-        memory: memUsed,
-        message: result.error_msg || statusInfo.message,
-      })
+      // 尝试解析 output 为 case 详细结果 JSON
+      let caseResults = []
+      try {
+        const parsed = JSON.parse(result.output || '[]')
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].index !== undefined) {
+          caseResults = parsed
+        }
+      } catch (e) { /* 非 JSON，走普通文本展示 */ }
 
-      if (result.status === 'accepted') {
-        resultStatus.value = 'success'
-        resultOutput.value = `✓ 样例通过\n\n实际输出：\n${result.output || ''}\n\n执行时间：${timeCost}ms${memUsed ? '\n内存使用：' + memUsed + 'MB' : ''}`
-      } else {
+      if (caseResults.length > 0) {
+        testCaseResults.value = caseResults
+        const allPassed = caseResults.every(c => c.passed)
+        resultTitle.value = `测试结果（${caseResults.filter(c => c.passed).length}/${caseResults.length} 通过）`
+        resultStatus.value = allPassed ? 'success' : 'error'
+        resultOutput.value = ''
+      } else if (result.status === 'compile_error') {
+        testCaseResults.value = []
         resultStatus.value = 'error'
-        resultOutput.value = `✗ ${statusInfo.message || result.status}\n\n${result.error_msg || ''}\n\n实际输出：\n${result.output || ''}`
+        resultTitle.value = '测试结果'
+        resultOutput.value = `✗ 编译错误\n\n${result.error_msg || ''}`
+      } else {
+        testCaseResults.value = []
+        resultStatus.value = result.status === 'accepted' ? 'success' : 'error'
+        resultTitle.value = '测试结果'
+        resultOutput.value = result.error_msg || result.output || ''
       }
 
-      // 重新打开弹窗展示结果
+      // 重新打开弹窗展示结果（测试不切换到运行记录）
       showResult.value = true
-      // 切换到运行记录
-      activeTab.value = 'problem'
-      nextTick(() => { leftTab.value = 'records' })
     })
   } catch (e) {
     isRunning.value = false
     resultStatus.value = 'error'
     resultOutput.value = '提交失败：' + (e?.message || e)
+    testCaseResults.value = []
     showResult.value = true
   }
 }
@@ -1113,22 +1334,42 @@ const onRun = async () => {
       const timeCost = result.time_cost || 0
       const memUsed = result.memory_used ? (result.memory_used / 1024).toFixed(1) : null
 
+      // 尝试解析 output 为 case 详细结果 JSON（submit 模式后端也返回 JSON）
+      let caseResults = []
+      try {
+        const parsed = JSON.parse(result.output || '[]')
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].index !== undefined) {
+          caseResults = parsed
+        }
+      } catch (e) { /* 非 JSON */ }
+
+      // 构建运行记录的 message
+      let recordMessage = result.error_msg || statusInfo.message || ''
+      if (caseResults.length > 0) {
+        const passedCount = caseResults.filter(c => c.passed).length
+        const total = caseResults.length
+        // 找到第一个未通过的 case
+        const firstFail = caseResults.find(c => !c.passed)
+        if (firstFail) {
+          const failStatus = firstFail.status === 'wrong_answer' ? '答案错误'
+            : firstFail.status === 'runtime_error' ? '运行错误'
+            : firstFail.status === 'time_limit_exceeded' ? '执行超时'
+            : firstFail.status === 'compile_error' ? '编译错误' : '错误'
+          recordMessage = `${passedCount}/${total} 通过\n\n测试点 ${firstFail.index}：${failStatus}\n输入：${firstFail.input}\n预期输出：${firstFail.expected_output}\n实际输出：${firstFail.actual_output || '(无输出)'}${firstFail.error_msg ? '\n错误信息：' + firstFail.error_msg : ''}`
+        } else {
+          recordMessage = `${passedCount}/${total} 通过`
+        }
+      }
+
       addRunRecord(statusInfo.statusKey, {
         timeCost,
         memory: memUsed,
-        message: result.error_msg || statusInfo.message,
+        message: recordMessage,
       })
 
-      if (result.status === 'accepted') {
-        resultStatus.value = 'success'
-        resultOutput.value = `✓ 全部通过\n\n执行时间：${timeCost}ms${memUsed ? '\n内存使用：' + memUsed + 'MB' : ''}`
-      } else {
-        resultStatus.value = 'error'
-        resultOutput.value = `✗ ${statusInfo.message || result.status}\n\n${result.error_msg || ''}`
-      }
-
-      // 重新打开弹窗展示结果
-      showResult.value = true
+      // 运行模式不展示右下角弹窗，只切换到运行记录
+      showResult.value = false
+      testCaseResults.value = []
       // 切换到运行记录
       activeTab.value = 'problem'
       nextTick(() => { leftTab.value = 'records' })
@@ -1142,12 +1383,295 @@ const onRun = async () => {
 }
 
 const difficultyLabel = (diff) => {
-  // 后端直接返回中文，兼容英文格式
-  const map = { easy: '简单', medium: '中等', hard: '困难' }
+  // 兼容中英文
+  const map = { easy: '简单', medium: '中等', hard: '困难', '简单': '简单', '中等': '中等', '困难': '困难' }
   return map[diff] || diff || ''
 }
 
 const goBack = () => router.back()
+
+// ===== AI 答疑 =====
+const aiPopupVisible = ref(false)
+const aiMessages = ref([])
+const aiInputText = ref('')
+const aiLoading = ref(false)
+const aiMessagesEl = ref(null)
+const aiPendingImages = ref([])
+
+// AI中止控制器
+let aiAbortController = null;
+
+// 停止AI对话
+const stopAIMessage = () => {
+  if (aiAbortController) {
+    aiAbortController.abort();
+    aiAbortController = null;
+  }
+  aiLoading.value = false;
+};
+
+// 模型选择
+const aiModels = ref([])
+const aiSelectedModel = ref('')
+const aiModelsLoading = ref(false)
+const aiDeepThink = ref(false)  // 是否开启深度思考模式
+
+// 当前选中模型的描述
+const currentAIModelDesc = computed(() => {
+  const m = aiModels.value.find(m => m.model_id === aiSelectedModel.value)
+  return m?.description || ''
+})
+
+// 是否为千问模型
+const isQwenModel = computed(() => {
+  const m = aiModels.value.find(m => m.model_id === aiSelectedModel.value)
+  return m?.provider === 'qwen'
+})
+
+// 加载模型列表
+const loadAIModels = async () => {
+  if (aiModels.value.length > 0) return
+  aiModelsLoading.value = true
+  try {
+    const res = await studentAPI.getAIModels()
+    const models = res?.data?.models || []
+    aiModels.value = models
+    if (models.length > 0 && !aiSelectedModel.value) {
+      aiSelectedModel.value = models[0].model_id
+    }
+  } catch (e) {
+    console.error('加载模型列表失败:', e)
+    aiModels.value = [
+      { model_id: 'doubao-seed-1-6-lite-251015', model_name: 'Doubao-Seed-1.6-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
+      { model_id: 'qwen3-omni-flash', model_name: 'Qwen3-Omni-Flash', provider: 'qwen', description: '全模态模型，Thinker–Talker 架构' }
+    ]
+    if (!aiSelectedModel.value) aiSelectedModel.value = 'doubao-seed-1-6-lite-251015'
+  } finally {
+    aiModelsLoading.value = false
+  }
+}
+
+const canSendAI = computed(() => {
+  return (aiInputText.value.trim() !== '' || aiPendingImages.value.length > 0) && !aiLoading.value
+})
+
+const openAIChat = () => {
+  aiPopupVisible.value = true
+  loadAIModels()  // 打开时加载模型列表
+  nextTick(() => scrollAIToBottom())
+}
+
+const clearAIChat = () => {
+  aiMessages.value = []
+  aiPendingImages.value = []
+  aiInputText.value = ''
+}
+
+function nowTimeStr() {
+  const d = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const formatAIMessage = (content) => {
+  if (!content) return ''
+  let html = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre class="ai-code-block"><code>${escapeHtml(code.trim())}</code></pre>`
+  })
+  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>')
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\n/g, '<br>')
+  return html
+}
+
+const scrollAIToBottom = () => {
+  nextTick(() => {
+    if (aiMessagesEl.value) {
+      aiMessagesEl.value.scrollTop = aiMessagesEl.value.scrollHeight
+    }
+  })
+}
+
+const onAIPaste = (e) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault()
+      const file = item.getAsFile()
+      if (!file) continue
+      const reader = new FileReader()
+      reader.onload = (ev) => { aiPendingImages.value.push(ev.target.result) }
+      reader.readAsDataURL(file)
+    }
+  }
+}
+
+// 点击上传图片
+const handleAIImageUpload = (file) => {
+  const isImage = file.file.type.startsWith('image/')
+  const isLt10M = file.file.size / 1024 / 1024 < 10
+  if (!isImage || !isLt10M) return
+  const reader = new FileReader()
+  reader.onload = (ev) => { aiPendingImages.value.push(ev.target.result) }
+  reader.readAsDataURL(file.file)
+}
+
+const removeAIPendingImage = (idx) => {
+  aiPendingImages.value.splice(idx, 1)
+}
+
+function buildProblemInfo() {
+  if (!problem.value || !problem.value.id) return null
+  return {
+    id: problem.value.id,
+    title: problem.value.title,
+    difficulty: problem.value.difficulty,
+    description: problem.value.description,
+    input_format: problem.value.inputFormat,
+    output_format: problem.value.outputFormat,
+    tags: problem.value.tags,
+    time_limit: problem.value.timeLimit,
+    memory_limit: problem.value.memoryLimit
+  }
+}
+
+const handleAIKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault()
+    sendAIMessage()
+  }
+}
+
+// 发送AI消息（SSE流式）
+const sendAIMessage = async () => {
+  if (!canSendAI.value) return
+
+  const text = aiInputText.value.trim()
+  const images = [...aiPendingImages.value]
+
+  // 构建带图片标记的消息内容（用于传给后端）
+  let messageContent = text
+  for (const img of images) {
+    messageContent += `\n[IMAGE:${img}]`
+  }
+
+  if (text || images.length > 0) {
+    aiMessages.value.push({ role: 'user', content: messageContent, displayContent: text, type: 'text', time: nowTimeStr() })
+  }
+  for (const img of images) {
+    aiMessages.value.push({ role: 'user', content: img, type: 'image', time: nowTimeStr() })
+  }
+
+  aiInputText.value = ''
+  aiPendingImages.value = []
+  aiLoading.value = true
+  scrollAIToBottom()
+
+  // 图片已嵌入文本消息的content中，过滤掉单独的image展示消息
+  const historyMessages = aiMessages.value
+    .filter(m => m.type !== 'image')
+    .map(m => ({ role: m.role, content: m.content }))
+
+  const assistantMsgIdx = aiMessages.value.length
+  aiMessages.value.push({ role: 'assistant', content: '', thinkContent: '', thinkExpanded: true, type: 'text', time: nowTimeStr() })
+
+  try {
+    aiAbortController = new AbortController();
+    const response = await studentAPI.aiChatStream({
+      question_type: 'algorithm_problem',
+      problem_info: buildProblemInfo(),
+      messages: historyMessages,
+      model_id: aiSelectedModel.value || 'doubao-seed-1-6-lite-251015',
+      enable_thinking: aiDeepThink.value
+    }, aiAbortController.signal)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let thinkBuf = ''
+    let inThink = false
+
+    const processChunkContent = (raw) => {
+      thinkBuf += raw
+      const msg = aiMessages.value[assistantMsgIdx]
+      while (thinkBuf.length > 0) {
+        if (inThink) {
+          const endIdx = thinkBuf.indexOf('</think>')
+          if (endIdx !== -1) {
+            msg.thinkContent += thinkBuf.slice(0, endIdx)
+            thinkBuf = thinkBuf.slice(endIdx + 8)
+            inThink = false
+          } else {
+            const safe = thinkBuf.length > 7 ? thinkBuf.slice(0, thinkBuf.length - 7) : ''
+            if (safe) { msg.thinkContent += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        } else {
+          const startIdx = thinkBuf.indexOf('<think>')
+          if (startIdx !== -1) {
+            msg.content += thinkBuf.slice(0, startIdx)
+            thinkBuf = thinkBuf.slice(startIdx + 7)
+            inThink = true
+          } else {
+            const safe = thinkBuf.length > 6 ? thinkBuf.slice(0, thinkBuf.length - 6) : ''
+            if (safe) { msg.content += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        }
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        if (thinkBuf) {
+          const msg = aiMessages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') { aiLoading.value = false; break }
+          try {
+            const chunk = JSON.parse(data)
+            if (chunk.content) {
+              processChunkContent(chunk.content)
+              scrollAIToBottom()
+            }
+            if (chunk.is_end) aiLoading.value = false
+          } catch (e) { /* 忽略 */ }
+        }
+      }
+    }
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      // 用户主动终止
+    } else {
+      console.error('AI答疑失败:', e)
+      if (aiMessages.value[assistantMsgIdx]?.content === '' && !aiMessages.value[assistantMsgIdx]?.thinkContent) {
+        aiMessages.value.splice(assistantMsgIdx, 1)
+      }
+    }
+  } finally {
+    aiLoading.value = false
+    aiAbortController = null
+  }
+}
 
 onMounted(async () => {
   // 从后端加载题目数据
@@ -1163,6 +1687,59 @@ onMounted(async () => {
       }
     } catch (e) {
       problemLoadError.value = '题目加载失败：' + (e?.message || e)
+    }
+
+    // 加载历史运行记录（最新10条，倒序）
+    try {
+      const recordsRes = await studentAPI.getCodeRunRecords(numId)
+      const records = recordsRes?.data?.records || recordsRes?.records || []
+      records.forEach(r => {
+        // 只展示 submit 类型的记录
+        if (r.run_type !== 'submit') return
+
+        const statusInfo = RUN_STATUS_MAP[r.status] || { statusKey: 're', message: '未知状态' }
+        const timeCost = r.time_cost || 0
+        const memUsed = r.memory_used ? (r.memory_used / 1024).toFixed(1) : null
+
+        // 解析 output 构建 message
+        let recordMessage = r.error_msg || statusInfo.message || ''
+        try {
+          const parsed = JSON.parse(r.output || '[]')
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].index !== undefined) {
+            const passedCount = parsed.filter(c => c.passed).length
+            const total = parsed.length
+            const firstFail = parsed.find(c => !c.passed)
+            if (firstFail) {
+              const failStatus = firstFail.status === 'wrong_answer' ? '答案错误'
+                : firstFail.status === 'runtime_error' ? '运行错误'
+                : firstFail.status === 'time_limit_exceeded' ? '执行超时'
+                : firstFail.status === 'compile_error' ? '编译错误' : '错误'
+              recordMessage = `${passedCount}/${total} 通过\n\n测试点 ${firstFail.index}：${failStatus}\n输入：${firstFail.input}\n预期输出：${firstFail.expected_output}\n实际输出：${firstFail.actual_output || '(无输出)'}${firstFail.error_msg ? '\n错误信息：' + firstFail.error_msg : ''}`
+            } else {
+              recordMessage = `${passedCount}/${total} 通过`
+            }
+          }
+        } catch (e) { /* 非 JSON */ }
+
+        const cfg = STATUS_CONFIG[statusInfo.statusKey] || STATUS_CONFIG.pending
+        runRecords.value.push({
+          id: r.run_id,
+          statusKey: statusInfo.statusKey,
+          statusLabel: cfg.label,
+          vanTagType: cfg.vanTagType,
+          langLabel: langOptions.find(l => l.value === r.language)?.text || r.language,
+          datetime: r.created_at,
+          timeCost,
+          memory: memUsed,
+          message: recordMessage,
+          code: r.code,
+          showCode: false,
+          status: r.status,
+        })
+      })
+    } catch (e) {
+      // 加载历史记录失败不影响主流程，静默处理
+      console.warn('加载历史运行记录失败:', e)
     }
   } else {
     problemLoadError.value = '题目ID无效'
@@ -1323,9 +1900,10 @@ onMounted(async () => {
   margin: 0;
   font-size: 12px;
   font-family: 'Courier New', monospace;
-  color: #ee0a24;
   white-space: pre-wrap;
   line-height: 1.5;
+  &.record-message--success { color: #07c160; }
+  &.record-message--error   { color: #ee0a24; }
 }
 .record-code-toggle {
   display: flex;
@@ -1381,10 +1959,10 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-/* 难度标签 */
-.diff-tag-easy { background: #e8f5e9 !important; color: #4caf50 !important; border-color: #4caf50 !important; }
-.diff-tag-medium { background: #fff3e0 !important; color: #ff9800 !important; border-color: #ff9800 !important; }
-.diff-tag-hard { background: #fce4ec !important; color: #e91e63 !important; border-color: #e91e63 !important; }
+/* 难度标签（兼容中英文） */
+.diff-tag-easy, .diff-tag-简单 { background: #e8f5e9 !important; color: #4caf50 !important; border-color: #4caf50 !important; }
+.diff-tag-medium, .diff-tag-中等 { background: #fff3e0 !important; color: #ff9800 !important; border-color: #ff9800 !important; }
+.diff-tag-hard, .diff-tag-困难 { background: #fce4ec !important; color: #e91e63 !important; border-color: #e91e63 !important; }
 
 /* 题目详情区块 */
 .detail-section {
@@ -1708,7 +2286,7 @@ onMounted(async () => {
 .result-body {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 12px 14px;
 }
 .result-output {
   margin-top: 10px;
@@ -1717,5 +2295,428 @@ onMounted(async () => {
   color: var(--ide-result-out);
   white-space: pre-wrap;
   line-height: 1.6;
+}
+
+/* 测试 case 可视化 */
+.test-case-item {
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border: 1px solid #ebedf0;
+  background: #fff;
+}
+.test-case-item.case-pass { border-left: 3px solid #07c160; }
+.test-case-item.case-fail  { border-left: 3px solid #ee0a24; }
+
+.case-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+.case-icon { font-size: 14px; font-weight: 700; }
+.test-case-item.case-pass .case-icon { color: #07c160; }
+.test-case-item.case-fail  .case-icon { color: #ee0a24; }
+.case-title { font-size: 12px; font-weight: 600; color: #303133; }
+.case-time  { font-size: 11px; color: #909399; margin-left: 4px; }
+
+.case-body { padding: 8px 12px; }
+.case-row  { display: flex; gap: 8px; }
+.case-col  { flex: 1; min-width: 0; }
+.case-label {
+  font-size: 10px;
+  color: #909399;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.case-code {
+  background: #f5f7fa;
+  border: 1px solid #ebedf0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: #303133;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 28px;
+  line-height: 1.5;
+}
+.case-code.case-expected    { color: #909399; }
+.case-code.case-actual-pass { color: #07c160; border-color: rgba(7,193,96,0.3); background: rgba(7,193,96,0.05); }
+.case-code.case-actual-fail { color: #ee0a24; border-color: rgba(238,10,36,0.3); background: rgba(238,10,36,0.05); }
+
+.case-error-msg {
+  margin-top: 6px;
+  padding: 5px 8px;
+  background: rgba(238,10,36,0.06);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: #ee0a24;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* ===== AI 答疑悬浮按钮 ===== */
+.ai-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 80px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 24px;
+  padding: 8px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+  user-select: none;
+  .ai-fab-icon { font-size: 20px; line-height: 1; }
+  .ai-fab-text { font-size: 11px; font-weight: 600; }
+}
+
+/* ===== AI 答疑弹出面板 ===== */
+.ai-popup-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f8f9ff;
+}
+
+.ai-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex-shrink: 0;
+  .ai-popup-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .ai-popup-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+.ai-context-tip {
+  padding: 7px 14px;
+  background: #e8eeff;
+  border-bottom: 1px solid #d0d8ff;
+  font-size: 12px;
+  color: #5a6ea0;
+  flex-shrink: 0;
+  strong { color: #3a4a8a; }
+}
+
+.ai-model-selector {
+  padding: 8px 14px;
+  background: linear-gradient(to bottom, #f0f2ff, #f8f9ff);
+  border-bottom: 1px solid #dde0f5;
+  flex-shrink: 0;
+
+  .ai-model-selector-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ai-model-label {
+    font-size: 12px;
+    color: #5a6ea0;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+
+  .qwen-auto-tip {
+    font-size: 12px;
+    color: #909399;
+    font-style: italic;
+  }
+
+  .ai-model-dropdown {
+    flex: 1;
+    :deep(.van-dropdown-menu__bar) {
+      background: white;
+      border-radius: 8px;
+      height: 30px;
+      box-shadow: none;
+      border: 1px solid #d0d8f0;
+    }
+    :deep(.van-dropdown-menu__title) {
+      font-size: 12px;
+      font-weight: 600;
+      color: #3a4a8a;
+    }
+  }
+
+  .ai-model-loading {
+    font-size: 11px;
+    color: #909399;
+  }
+
+  .ai-model-desc-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin-top: 7px;
+    padding: 5px 10px;
+    background: rgba(102, 126, 234, 0.07);
+    border-radius: 6px;
+    border: 1px solid rgba(102, 126, 234, 0.15);
+    font-size: 11px;
+    color: #667eea;
+    line-height: 1.5;
+  }
+
+  .ai-deep-think-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 7px;
+    padding: 5px 10px;
+    background: rgba(230, 162, 60, 0.07);
+    border-radius: 6px;
+    border: 1px solid rgba(230, 162, 60, 0.2);
+    font-size: 12px;
+    color: #e6a23c;
+  }
+}
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-welcome {
+  text-align: center;
+  padding: 30px 20px;
+  color: #8090b0;
+  .ai-welcome-icon { font-size: 40px; margin-bottom: 10px; }
+  .ai-welcome-text { font-size: 15px; font-weight: 600; color: #5a6ea0; margin-bottom: 6px; }
+  .ai-welcome-sub { font-size: 12px; line-height: 1.6; }
+}
+
+.ai-msg-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+
+  &.user {
+    flex-direction: row-reverse;
+    .ai-msg-bubble {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 14px 4px 14px 14px;
+      .ai-msg-time { color: rgba(255,255,255,0.7); }
+    }
+  }
+
+  &.assistant {
+    .ai-msg-bubble {
+      background: white;
+      border-radius: 4px 14px 14px 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+  }
+
+  .ai-msg-avatar {
+    font-size: 20px;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ai-msg-bubble {
+    max-width: 85%;
+    padding: 9px 12px;
+
+    .ai-think-block {
+      margin-bottom: 7px;
+      border: 1px solid rgba(102, 126, 234, 0.25);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(102, 126, 234, 0.04);
+
+      .ai-think-header {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 10px;
+        cursor: pointer;
+        background: rgba(102, 126, 234, 0.08);
+        user-select: none;
+        &:active { background: rgba(102, 126, 234, 0.14); }
+        .ai-think-icon { font-size: 12px; }
+        .ai-think-title { font-size: 12px; font-weight: 600; color: #667eea; flex: 1; }
+        .ai-think-toggle { font-size: 11px; color: #909399; }
+      }
+
+      .ai-think-content {
+        padding: 8px 10px;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #606266;
+        border-top: 1px dashed rgba(102, 126, 234, 0.2);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    }
+
+    .ai-msg-text {
+      font-size: 13px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+
+    .ai-code-block {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 6px 0;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .ai-inline-code {
+      background: rgba(102, 126, 234, 0.12);
+      color: #667eea;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .ai-msg-image {
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+
+    .ai-msg-time {
+      font-size: 10px;
+      color: #a0aec0;
+      margin-top: 3px;
+      text-align: right;
+    }
+
+    .ai-loading-dots {
+      display: flex;
+      gap: 4px;
+      padding: 3px 0;
+      span {
+        width: 7px;
+        height: 7px;
+        background: #667eea;
+        border-radius: 50%;
+        animation: ai-bounce 1.4s infinite ease-in-out both;
+        &:nth-child(1) { animation-delay: -0.32s; }
+        &:nth-child(2) { animation-delay: -0.16s; }
+      }
+    }
+  }
+}
+
+@keyframes ai-bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+.ai-input-area {
+  border-top: 1px solid #e0e6f0;
+  padding: 10px 12px;
+  background: white;
+  flex-shrink: 0;
+}
+
+.ai-pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  .ai-pending-img-wrap {
+    position: relative;
+    .ai-pending-img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 2px solid #667eea;
+    }
+    .ai-pending-img-remove {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 16px;
+      height: 16px;
+      background: #ee0a24;
+      color: white;
+      border-radius: 50%;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+  }
+}
+
+.ai-input-row {
+  .ai-textarea {
+    width: 100%;
+    border: 1.5px solid #d0d8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+    color: #303133;
+    background: #f8f9ff;
+    box-sizing: border-box;
+    &:focus { border-color: #667eea; background: white; }
+    &::placeholder { color: #b0bcd0; font-size: 12px; }
+  }
+}
+
+.ai-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  .ai-input-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ai-input-hint { font-size: 11px; color: #a0aec0; }
+  .ai-upload-btn { font-size: 11px; }
 }
 </style>
