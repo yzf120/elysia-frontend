@@ -342,10 +342,34 @@
             <span>AI 答疑助手</span>
           </div>
           <div class="ai-drawer-actions">
+            <el-button size="small" type="primary" plain @click="newAISession">
+              <el-icon><Plus /></el-icon>
+              新会话
+            </el-button>
             <el-button size="small" plain @click="clearAIChat">清空对话</el-button>
             <el-button size="small" @click="aiDrawerVisible = false">
               <el-icon><Close /></el-icon>
             </el-button>
+          </div>
+        </div>
+
+        <!-- 该题目历史会话列表 -->
+        <div v-if="aiSessionList.length > 0" class="ai-session-list">
+          <div class="ai-session-list-title">
+            <el-icon><Clock /></el-icon>
+            该题目历史会话
+          </div>
+          <div class="ai-session-list-scroll">
+            <div
+              v-for="s in aiSessionList"
+              :key="s.id"
+              class="ai-session-item"
+              :class="{ active: aiCurrentSessionId === s.id }"
+              @click="loadAISession(s.id)"
+            >
+              <div class="ai-session-item-title">{{ s.title }}</div>
+              <div class="ai-session-item-time">{{ formatAISessionTime(s.updateTime) }}</div>
+            </div>
           </div>
         </div>
 
@@ -513,7 +537,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   ArrowLeft, Timer, Coin, InfoFilled,
-  RefreshLeft, VideoPlay, Upload, Close, ArrowUp, ArrowDown, Loading, VideoPause, Paperclip
+  RefreshLeft, VideoPlay, Upload, Close, ArrowUp, ArrowDown, Loading, VideoPause, Paperclip,
+  Clock, Plus, Setting
 } from '@element-plus/icons-vue'
 import { studentAPI } from '@/services/index.js'
 
@@ -1530,6 +1555,75 @@ const aiMessagesEl = ref(null)
 const aiInputEl = ref(null)
 const aiPendingImages = ref([])  // 待发送的图片（base64 data url）
 
+// AI 会话管理
+const aiCurrentSessionId = ref('')  // 当前会话ID
+const aiSessionList = ref([])       // 该题目的历史会话列表
+
+// 加载该题目的历史会话列表
+const loadAISessionList = async () => {
+  try {
+    const res = await studentAPI.getAISessions(1, 50)
+    const list = res?.data?.sessions || []
+    const pid = getProblemNumericId()
+    // 只展示该题目的会话（problem_id 匹配）
+    aiSessionList.value = list
+      .filter(s => s.problem_id && s.problem_id === pid)
+      .map(s => ({
+        id: s.session_id,
+        title: s.session_title || '未命名会话',
+        updateTime: s.last_interact_time || s.create_time
+      }))
+      .sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+  } catch (e) {
+    console.warn('加载AI会话列表失败:', e)
+  }
+}
+
+// 加载某个历史会话的消息
+const loadAISession = async (sessionId) => {
+  if (aiCurrentSessionId.value === sessionId) return
+  try {
+    aiCurrentSessionId.value = sessionId
+    aiMessages.value = []
+    const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
+    const convList = res?.data?.conversations || []
+    convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
+    aiMessages.value = convList.map(c => ({
+      role: c.sender_type === 2 ? 'assistant' : 'user',
+      content: c.message_content || '',
+      displayContent: c.message_content || '',
+      type: 'text',
+      time: c.send_time || c.create_time,
+      thinkContent: '',
+      thinkExpanded: false
+    }))
+    scrollAIToBottom()
+  } catch (e) {
+    ElMessage.error('加载历史会话失败')
+    console.error('加载历史会话失败:', e)
+  }
+}
+
+// 新建会话
+const newAISession = () => {
+  aiCurrentSessionId.value = ''
+  aiMessages.value = []
+  aiInputText.value = ''
+  aiPendingImages.value = []
+}
+
+// 格式化会话时间
+const formatAISessionTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  const now = new Date()
+  const diff = now - date
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
 // AI中止控制器
 let aiAbortController = null
 
@@ -1595,6 +1689,7 @@ const canSendAI = computed(() => {
 const openAIChat = () => {
   aiDrawerVisible.value = true
   loadAIModels()  // 打开时加载模型列表
+  loadAISessionList()  // 加载该题目的历史会话列表
   nextTick(() => {
     scrollAIToBottom()
     aiInputEl.value?.focus()
@@ -1727,6 +1822,8 @@ const sendAIMessage = async () => {
   try {
     aiAbortController = new AbortController()
     const response = await studentAPI.aiChatStream({
+      session_id: aiCurrentSessionId.value || '',
+      problem_id: getProblemNumericId() || 0,
       question_type: 'algorithm_problem',
       problem_info: buildProblemInfo(),
       messages: historyMessages,
@@ -1829,6 +1926,16 @@ const sendAIMessage = async () => {
   } finally {
     aiLoading.value = false
     aiAbortController = null
+    // 发送完成后刷新会话列表，并在首轮对话后更新 currentSessionId
+    setTimeout(async () => {
+      const prevIds = new Set(aiSessionList.value.map(s => s.id))
+      await loadAISessionList()
+      if (!aiCurrentSessionId.value) {
+        // 首轮对话：找到新增的会话
+        const newSession = aiSessionList.value.find(s => !prevIds.has(s.id))
+        if (newSession) aiCurrentSessionId.value = newSession.id
+      }
+    }, 1500)
   }
 }
 
@@ -2814,6 +2921,75 @@ onMounted(async () => {
   flex-shrink: 0;
   .el-icon { color: #667eea; flex-shrink: 0; }
   strong { color: #3a4a8a; }
+}
+
+/* 历史会话列表 */
+.ai-session-list {
+  flex-shrink: 0;
+  border-bottom: 1px solid #dde0f5;
+  background: #f8f9ff;
+
+  .ai-session-list-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    .el-icon { font-size: 12px; }
+  }
+
+  .ai-session-list-scroll {
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 0 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    &::-webkit-scrollbar { width: 4px; }
+    &::-webkit-scrollbar-thumb { background: #c0c8e8; border-radius: 2px; }
+  }
+
+  .ai-session-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+
+    &:hover {
+      background: #e8eeff;
+      border-color: rgba(102, 126, 234, 0.2);
+    }
+
+    &.active {
+      background: linear-gradient(135deg, #e8eeff, #f0f4ff);
+      border-color: #667eea;
+    }
+
+    .ai-session-item-title {
+      font-size: 12px;
+      color: #303133;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ai-session-item-time {
+      font-size: 10px;
+      color: #909399;
+      flex-shrink: 0;
+      margin-left: 6px;
+    }
+  }
 }
 
 .ai-model-selector {

@@ -176,6 +176,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import AdminSidebar from '@/components/admin/AdminSidebar.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const router = useRouter();

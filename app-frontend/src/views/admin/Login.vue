@@ -216,6 +216,7 @@ const startCountdown = () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 50%, #E0F2FE 100%);
 }
 
 .login-container {
@@ -224,9 +225,10 @@ const startCountdown = () => {
 }
 
 .nav-bar {
-  background: transparent;
+  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
   :deep(.van-nav-bar__title) {
     color: white;
+    font-weight: 600;
   }
   :deep(.van-icon) {
     color: white;
@@ -235,29 +237,85 @@ const startCountdown = () => {
 
 .login-card {
   margin: 20px;
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #FFFFFF 0%, rgba(240, 253, 244, 0.5) 100%);
+  border-radius: 24px;
+  padding: 32px 24px;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.1);
 }
 
 .card-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .icon {
-  font-size: 64px;
-  margin-bottom: 12px;
+  font-size: 72px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.3));
 }
 
 .card-header h2 {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #10B981, #06B6D4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .form-footer {
-  padding: 16px;
+  padding: 20px 16px 8px;
+}
+
+.form-footer :deep(.van-button--primary) {
+  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  border: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  font-weight: 600;
+  height: 48px;
+}
+
+:deep(.van-tabs__nav) {
+  background: transparent;
+}
+
+:deep(.van-tab--active) {
+  color: #10B981;
+  font-weight: 600;
+}
+
+:deep(.van-tabs__line) {
+  background: linear-gradient(135deg, #10B981, #06B6D4);
+  height: 3px;
+  border-radius: 3px;
+}
+
+:deep(.van-cell-group--inset) {
+  margin: 16px 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+}
+
+:deep(.van-field__button .van-button--primary) {
+  background: linear-gradient(135deg, #10B981, #06B6D4);
+  border: none;
+  font-weight: 600;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
 }
 </style>

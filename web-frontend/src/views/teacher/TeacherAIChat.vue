@@ -100,35 +100,29 @@
               </div>
               <div class="message-content">
               <div class="message-text">
-                <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
-                <!-- 图片预览 -->
-                <div v-if="msg.images && msg.images.length > 0" class="message-images">
-                  <img
-                    v-for="(imgUrl, imgIdx) in msg.images"
-                    :key="imgIdx"
-                    :src="imgUrl"
-                    class="message-image-preview"
-                    @click="previewImage(imgUrl)"
-                  />
+                <!-- AI 消息内容为空时显示 loading 动画 -->
+                <div v-if="msg.role === 'assistant' && !msg.content" class="loading-dots">
+                  <span></span><span></span><span></span>
+                </div>
+                <div v-else>
+                  <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
+                  <!-- 图片预览 -->
+                  <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                    <img
+                      v-for="(imgUrl, imgIdx) in msg.images"
+                      :key="imgIdx"
+                      :src="imgUrl"
+                      class="message-image-preview"
+                      @click="previewImage(imgUrl)"
+                    />
+                  </div>
                 </div>
               </div>
                 <div class="message-time">{{ formatTime(msg.time) }}</div>
               </div>
             </div>
 
-            <!-- 加载中提示 -->
-            <div v-if="isLoading" class="message-item assistant">
-              <div class="message-avatar">
-                <el-avatar :size="40" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);">
-                  <el-icon><ChatDotRound /></el-icon>
-                </el-avatar>
-              </div>
-              <div class="message-content">
-                <div class="loading-dots">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
 
@@ -296,14 +290,25 @@ const createNewSession = () => {
 };
 
 const loadSession = async (sessionId) => {
-  currentSessionId.value = sessionId;
-  messages.value = [
-    { role: 'user', content: '请帮我生成一份Python基础知识的教学资料', time: new Date(Date.now() - 3600000).toISOString() },
-    { role: 'assistant', content: '好的，我为您生成了Python基础知识的教学资料...', time: new Date(Date.now() - 3500000).toISOString() }
-  ];
-  await nextTick();
-  scrollToBottom();
-};
+  try {
+    currentSessionId.value = sessionId
+    messages.value = []
+    const res = await teacherAPI.getAISessionMessages(sessionId, 1, 200)
+    const convList = res?.data?.conversations || []
+    convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
+    messages.value = convList.map(c => ({
+      role: c.sender_type === 2 ? 'assistant' : 'user',
+      content: c.message_content || '',
+      displayContent: c.message_content || '',
+      time: c.send_time || c.create_time
+    }))
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('加载会话失败:', error)
+    ElMessage.error('加载会话失败')
+  }
+}
 
 // 处理键盘事件，Ctrl+Enter 发送
 const handleKeydown = (e) => {
@@ -353,6 +358,7 @@ const sendMessage = async () => {
   try {
     abortController = new AbortController();
     const response = await teacherAPI.aiChatStream({
+      session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
       model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015'
@@ -404,6 +410,23 @@ const sendMessage = async () => {
   } finally {
     isLoading.value = false;
     abortController = null;
+    // 发送完成后刷新会话列表
+    setTimeout(async () => {
+      try {
+        const prevIds = new Set(sessions.value.map(s => s.id))
+        const res = await teacherAPI.getAISessions(1, 50)
+        const list = res?.data?.sessions || []
+        sessions.value = list.map(s => ({
+          id: s.session_id,
+          title: s.session_title || '未命名会话',
+          updateTime: s.last_interact_time || s.create_time
+        })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+        if (!currentSessionId.value) {
+          const newSession = sessions.value.find(s => !prevIds.has(s.id))
+          if (newSession) currentSessionId.value = newSession.id
+        }
+      } catch (e) { /* 静默处理 */ }
+    }, 1500)
   }
 };
 
@@ -441,12 +464,19 @@ const goBack = () => {
   router.push({ name: 'TeacherDashboard' });
 };
 
-onMounted(() => {
-  sessions.value = [
-    { id: 1, title: 'Python教学资料生成', updateTime: new Date(Date.now() - 3600000).toISOString() },
-    { id: 2, title: '数据结构出题讨论', updateTime: new Date(Date.now() - 86400000).toISOString() }
-  ];
-});
+onMounted(async () => {
+  try {
+    const res = await teacherAPI.getAISessions(1, 50)
+    const list = res?.data?.sessions || []
+    sessions.value = list.map(s => ({
+      id: s.session_id,
+      title: s.session_title || '未命名会话',
+      updateTime: s.last_interact_time || s.create_time
+    })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+  }
+})
 </script>
 
 <style scoped lang="scss">

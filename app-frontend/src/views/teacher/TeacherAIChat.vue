@@ -2,9 +2,46 @@
   <div class="teacher-ai-chat-page">
     <van-nav-bar title="AI对话" left-arrow @click-left="$router.back()">
       <template #right>
-        <van-icon name="plus" size="20" @click="createNewSession" />
+        <div style="display:flex;gap:12px;align-items:center">
+          <van-icon name="bars" size="20" @click="showSidebar = true" />
+          <van-icon name="plus" size="20" @click="createNewSession" />
+        </div>
       </template>
     </van-nav-bar>
+
+    <!-- 会话历史侧边栏 -->
+    <van-popup
+      v-model:show="showSidebar"
+      position="left"
+      :style="{ width: '80%', height: '100%' }"
+    >
+      <div class="sidebar-content">
+        <div class="sidebar-header">
+          <span>会话历史</span>
+          <van-icon name="cross" size="18" @click="showSidebar = false" />
+        </div>
+        <van-button block round @click="createNewSession" class="new-session-btn">
+          <van-icon name="plus" />新建会话
+        </van-button>
+        <van-search v-model="searchKeyword" placeholder="搜索会话..." shape="round" background="transparent" />
+        <div class="session-list">
+          <div
+            v-for="s in filteredSessions"
+            :key="s.id"
+            class="session-item"
+            :class="{ active: currentSessionId === s.id }"
+            @click="loadSession(s.id)"
+          >
+            <div class="session-info">
+              <div class="session-title">{{ s.title }}</div>
+              <div class="session-time">{{ formatSessionTime(s.updateTime) }}</div>
+            </div>
+            <van-icon v-if="currentSessionId === s.id" name="success" size="16" color="#667eea" />
+          </div>
+          <van-empty v-if="filteredSessions.length === 0" description="暂无会话记录" image-size="80" />
+        </div>
+      </div>
+    </van-popup>
 
     <div class="chat-layout">
       <!-- 消息区域 -->
@@ -30,7 +67,11 @@
           >
             <div class="msg-avatar">{{ msg.role === 'user' ? '👨‍🏫' : '🤖' }}</div>
       <div class="msg-bubble">
-              <div class="msg-text">
+              <!-- AI 消息内容为空时显示 loading 动画 -->
+              <div v-if="msg.role === 'assistant' && !msg.content" class="loading-dots">
+                <span></span><span></span><span></span>
+              </div>
+              <div v-else class="msg-text">
                 <span v-html="formatMessage(msg.displayContent || msg.content)"></span>
                 <!-- 图片预览 -->
                 <div v-if="msg.images && msg.images.length > 0" class="message-images">
@@ -47,15 +88,7 @@
             </div>
           </div>
 
-          <!-- 加载中 -->
-          <div v-if="isLoading" class="message-item assistant">
-            <div class="msg-avatar">🤖</div>
-            <div class="msg-bubble">
-              <div class="loading-dots">
-                <span></span><span></span><span></span>
-              </div>
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -106,8 +139,68 @@ const inputMessage = ref('')
 const isLoading = ref(false)
 const messageAreaRef = ref(null)
 
-// 中止控制器
-let abortController = null
+// 会话管理
+const currentSessionId = ref(null)
+const sessions = ref([])
+const showSidebar = ref(false)
+const searchKeyword = ref('')
+
+// 过滤会话列表
+const filteredSessions = computed(() => {
+  if (!searchKeyword.value) return sessions.value
+  return sessions.value.filter(s =>
+    s.title.toLowerCase().includes(searchKeyword.value.toLowerCase())
+  )
+})
+
+// 加载会话列表
+const loadSessions = async () => {
+  try {
+    const res = await teacherAPI.getAISessions(1, 50)
+    const list = res?.data?.sessions || []
+    sessions.value = list.map(s => ({
+      id: s.session_id,
+      title: s.session_title || '未命名会话',
+      updateTime: s.last_interact_time || s.create_time
+    })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+  }
+}
+
+// 加载某个历史会话
+const loadSession = async (sessionId) => {
+  try {
+    currentSessionId.value = sessionId
+    showSidebar.value = false
+    messages.value = []
+    const res = await teacherAPI.getAISessionMessages(sessionId, 1, 200)
+    const convList = res?.data?.conversations || []
+    convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
+    messages.value = convList.map(c => ({
+      role: c.sender_type === 2 ? 'assistant' : 'user',
+      content: c.message_content || '',
+      displayContent: c.message_content || '',
+      time: c.send_time || c.create_time
+    }))
+    await scrollToBottom()
+  } catch (e) {
+    showToast('加载会话失败')
+    console.error('加载会话失败:', e)
+  }
+}
+
+// 格式化时间
+const formatSessionTime = (time) => {
+  if (!time) return ''
+  const d = new Date(time)
+  const now = new Date()
+  const diff = now - d
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
 
 // 待发送的图片附件
 const pendingImages = ref([]) // [{dataUrl: 'data:image/...;base64,...', name: 'xxx.png'}]
@@ -169,6 +262,7 @@ const scrollToBottom = async () => {
 const createNewSession = () => {
   messages.value = []
   inputMessage.value = ''
+  currentSessionId.value = null
   showToast({ type: 'success', message: '已创建新会话' })
 }
 
@@ -213,6 +307,7 @@ const sendMessage = async () => {
   try {
     abortController = new AbortController()
     const response = await teacherAPI.aiChatStream({
+      session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
       model_id: 'doubao-seed-1-6-lite-251015'
@@ -263,10 +358,27 @@ const sendMessage = async () => {
   } finally {
     isLoading.value = false
     abortController = null
+    // 发送完成后刷新会话列表，首轮对话后自动更新 currentSessionId
+    setTimeout(async () => {
+      try {
+        const prevIds = new Set(sessions.value.map(s => s.id))
+        const res = await teacherAPI.getAISessions(1, 50)
+        const list = res?.data?.sessions || []
+        sessions.value = list.map(s => ({
+          id: s.session_id,
+          title: s.session_title || '未命名会话',
+          updateTime: s.last_interact_time || s.create_time
+        })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+        if (!currentSessionId.value) {
+          const newSession = sessions.value.find(s => !prevIds.has(s.id))
+          if (newSession) currentSessionId.value = newSession.id
+        }
+      } catch (e) { /* 静默处理 */ }
+    }, 1500)
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   const info = localStorage.getItem('userInfo')
   if (info && info !== 'undefined') {
     try {
@@ -274,6 +386,7 @@ onMounted(() => {
       teacherName.value = parsed.name || parsed.teacher_name || teacherName.value
     } catch {}
   }
+  await loadSessions()
 })
 </script>
 
@@ -499,5 +612,76 @@ onMounted(() => {
   object-fit: cover;
   cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 侧边栏样式 */
+.sidebar-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.new-session-btn {
+  margin: 12px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  font-weight: 500;
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 16px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: #f8f9ff;
+  border: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.session-item.active {
+  background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
+  border-color: #667eea;
+}
+
+.session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 3px;
+}
+
+.session-time {
+  font-size: 11px;
+  color: #909399;
 }
 </style>

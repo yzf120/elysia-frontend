@@ -1,36 +1,6 @@
 <template>
   <div class="admin-layout">
-    <!-- 侧边栏 -->
-    <el-aside width="240px" class="admin-sidebar">
-      <div class="sidebar-logo">
-        <el-icon style="margin-right: 8px;"><Platform /></el-icon>
-        Elysia 管理端
-      </div>
-      <el-menu
-        :default-active="activeMenu"
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
-        router
-      >
-        <el-menu-item index="/admin/dashboard">
-          <el-icon><HomeFilled /></el-icon>
-          <span>管理员首页</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/knowledge">
-          <el-icon><Reading /></el-icon>
-          <span>知识库管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/users">
-          <el-icon><User /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/models">
-          <el-icon><Setting /></el-icon>
-          <span>模型管理</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
+    <AdminSidebar :active-menu="activeMenu" />
 
     <!-- 主内容区 -->
     <div class="admin-main">
@@ -178,6 +148,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import AdminSidebar from '@/components/admin/AdminSidebar.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import * as echarts from 'echarts';
 import * as XLSX from 'xlsx';

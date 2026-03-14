@@ -1,8 +1,10 @@
 import axios from 'axios';
 
+const apiBaseURL = 'http://localhost:8001/api';
+
 // 创建axios实例
 const api = axios.create({
-  baseURL: 'http://localhost:8001/api',
+  baseURL: apiBaseURL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -18,16 +20,12 @@ api.interceptors.request.use(
     }
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
 // 响应拦截器
 api.interceptors.response.use(
-  response => {
-    return response.data;
-  },
+  response => response.data,
   error => {
     if (error.response) {
       const { status, data } = error.response;
@@ -42,37 +40,107 @@ api.interceptors.response.use(
   }
 );
 
+const multipartConfig = {
+  headers: {
+    'Content-Type': 'multipart/form-data'
+  }
+};
+
+const fetchSystemAnnouncements = (params = {}) =>
+  api.get('/system-announcements', { params });
+
+const fetchPlatformBookshelf = (params = {}) =>
+  api.get('/platform-bookshelf', { params });
+
+const viewPlatformBookshelfAttachment = (itemId) =>
+  api.get(`/platform-bookshelf/files/${itemId}/view`, { responseType: 'blob' });
+
+const downloadPlatformBookshelfAttachment = (itemId) =>
+  api.get(`/platform-bookshelf/files/${itemId}/download`, { responseType: 'blob' });
+
 // ==================== 管理员接口 ====================
 export const adminAPI = {
   // 发送注册验证码
-  sendRegisterCode: (phoneNumber) => 
+  sendRegisterCode: (phoneNumber) =>
     api.post('/admin/auth/send-code-register', { phone_number: phoneNumber }),
-  
+
   // 发送登录验证码
-  sendLoginCode: (phoneNumber) => 
+  sendLoginCode: (phoneNumber) =>
     api.post('/admin/auth/send-code-login', { phone_number: phoneNumber }),
-  
+
   // 短信验证码注册
-  registerWithSMS: (phoneNumber, code) => 
+  registerWithSMS: (phoneNumber, code) =>
     api.post('/admin/auth/register-sms', { phone_number: phoneNumber, code }),
-  
+
   // 短信验证码登录
-  loginWithSMS: (phoneNumber, code) => 
+  loginWithSMS: (phoneNumber, code) =>
     api.post('/admin/auth/login-sms', { phone_number: phoneNumber, code }),
-  
+
   // 密码登录
-  loginWithPassword: (phoneNumber, password) => 
+  loginWithPassword: (phoneNumber, password) =>
     api.post('/admin/auth/login-password', { phone_number: phoneNumber, password }),
-  
+
   // 登出
-  logout: () => 
-    api.post('/admin/auth/logout')
+  logout: () => api.post('/admin/auth/logout'),
+
+  // 管理员个人信息接口
+  getProfile: () => api.get('/admin/profile'),
+  updatePassword: (oldPassword, newPassword) =>
+    api.post('/admin/profile/password', { old_password: oldPassword, new_password: newPassword }),
+  updateEmail: (email, code) =>
+    api.post('/admin/profile/email', { email, code }),
+
+  // 平台系统公告管理
+  listSystemAnnouncements: (params = {}) =>
+    api.get('/admin/system-announcements', { params }),
+  createSystemAnnouncement: (data) =>
+    api.post('/admin/system-announcements', data),
+  updateSystemAnnouncement: (announcementId, data) =>
+    api.put(`/admin/system-announcements/${announcementId}`, data),
+  deleteSystemAnnouncement: (announcementId) =>
+    api.delete(`/admin/system-announcements/${announcementId}`),
+
+  // 平台书架管理
+  listPlatformBookshelf: (params = {}) =>
+    api.get('/admin/platform-bookshelf', { params }),
+  createPlatformBookshelf: (formData) =>
+    api.post('/admin/platform-bookshelf', formData, multipartConfig),
+  updatePlatformBookshelf: (itemId, formData) =>
+    api.put(`/admin/platform-bookshelf/${itemId}`, formData, multipartConfig),
+  deletePlatformBookshelf: (itemId) =>
+    api.delete(`/admin/platform-bookshelf/${itemId}`),
+  viewPlatformBookshelfAttachment,
+  downloadPlatformBookshelfAttachment,
+
+  // 管理员用户管理
+  listAdminStudents: (params = {}) =>
+    api.get('/admin/users/students', { params }),
+  batchUpdateAdminStudentsStatus: (data) =>
+    api.post('/admin/users/students/status', data),
+  exportAdminStudents: (params = {}) =>
+    api.get('/admin/users/students/export', { params, responseType: 'blob' }),
+  listAdminTeachers: (params = {}) =>
+    api.get('/admin/users/teachers', { params }),
+  batchUpdateAdminTeachersStatus: (data) =>
+    api.post('/admin/users/teachers/status', data),
+  exportAdminTeachers: (params = {}) =>
+    api.get('/admin/users/teachers/export', { params, responseType: 'blob' }),
+
+  // 教师审核单管理
+  getTeacherApproval: (teacherId) =>
+    api.get(`/teacher/${teacherId}/approval`),
+  approveTeacher: (approvalId, data) =>
+    api.post(`/admin/teacher/approvals/${approvalId}/approve`, data),
+
+  // 用户侧查询能力（管理员也可查看）
+  getSystemAnnouncements: fetchSystemAnnouncements,
+  getPlatformBookshelf: fetchPlatformBookshelf
 };
 
 // ==================== 教师接口 ====================
 export const teacherAPI = {
   // 注册（需要审核）
-  register: (data) => 
+  register: (data) =>
     api.post('/register', {
       phone_number: data.phoneNumber,
       password: data.password,
@@ -81,34 +149,30 @@ export const teacherAPI = {
       department: data.department,
       title: data.title
     }),
-  
+
   // 发送登录验证码
-  sendLoginCode: (phoneNumber) => 
+  sendLoginCode: (phoneNumber) =>
     api.post('/teacher/auth/send-code-login', { phone_number: phoneNumber }),
-  
+
   // 短信验证码登录
-  loginWithSMS: (phoneNumber, code) => 
+  loginWithSMS: (phoneNumber, code) =>
     api.post('/teacher/auth/login-sms', { phone_number: phoneNumber, code }),
-  
+
   // 密码登录
-  loginWithPassword: (employeeNumber, password) => 
+  loginWithPassword: (employeeNumber, password) =>
     api.post('/teacher/auth/login-password', { employee_number: employeeNumber, password }),
-  
+
   // 登出
-  logout: () => 
-    api.post('/teacher/auth/logout'),
+  logout: () => api.post('/teacher/auth/logout'),
 
   // 查询全量启用科目列表（创建班级时使用）
-  listSubjects: () =>
-    api.get('/class/subjects'),
+  listSubjects: () => api.get('/class/subjects'),
 
   // 查询全量启用学期列表（创建班级时使用）
-  listSemesters: () =>
-    api.get('/class/semesters'),
+  listSemesters: () => api.get('/class/semesters'),
 
   // 创建班级
-  createClass: (data) =>
-    api.post('/teacher/class/create', data),
+  createClass: (data) => api.post('/teacher/class/create', data),
 
   // 查询教师班级列表
   getTeacherClasses: (teacherId, page = 1, pageSize = 10) =>
@@ -131,104 +195,93 @@ export const teacherAPI = {
     api.post('/teacher/class/update', { teacher_id: teacherId, class_id: classId, ...data }),
 
   // ---- 章节管理 ----
-  // 查询班级章节列表（含小节，师生共用）
-  getClassChapters: (classId) =>
-    api.post('/class/chapters', { class_id: classId }),
-
-  // 创建章节
+  getClassChapters: (classId) => api.post('/class/chapters', { class_id: classId }),
   createChapter: (teacherId, classId, title, description) =>
     api.post('/teacher/chapter/create', { teacher_id: teacherId, class_id: classId, title, description }),
-
-  // 更新章节
   updateChapter: (teacherId, chapterId, title, description) =>
     api.post('/teacher/chapter/update', { teacher_id: teacherId, chapter_id: chapterId, title, description }),
-
-  // 删除章节
   deleteChapter: (teacherId, chapterId) =>
     api.post('/teacher/chapter/delete', { teacher_id: teacherId, chapter_id: chapterId }),
-
-  // 调整章节排序
   reorderChapters: (teacherId, classId, orders) =>
     api.post('/teacher/chapter/reorder', { teacher_id: teacherId, class_id: classId, orders }),
-
-  // 创建小节
   createSection: (teacherId, chapterId, data) =>
     api.post('/teacher/section/create', { teacher_id: teacherId, chapter_id: chapterId, ...data }),
-
-  // 更新小节
   updateSection: (teacherId, sectionId, title, description, refId) =>
     api.post('/teacher/section/update', { teacher_id: teacherId, section_id: sectionId, title, description, ref_id: refId }),
-
-  // 删除小节
   deleteSection: (teacherId, sectionId) =>
     api.post('/teacher/section/delete', { teacher_id: teacherId, section_id: sectionId }),
-
-  // 调整小节排序
   reorderSections: (teacherId, chapterId, orders) =>
     api.post('/teacher/section/reorder', { teacher_id: teacherId, chapter_id: chapterId, orders }),
 
-  // ---- 公告管理 ----
-  // 发布公告（仅教师）
+  // ---- 班级公告管理 ----
   publishAnnouncement: (teacherId, classId, title, content) =>
     api.post('/teacher/class/announcement/publish', { teacher_id: teacherId, class_id: classId, title, content }),
-
-  // 删除公告（仅教师）
   deleteAnnouncement: (teacherId, classId, announcementId) =>
     api.post('/teacher/class/announcement/delete', { teacher_id: teacherId, class_id: classId, announcement_id: announcementId }),
-
-  // 查询公告列表（师生共用）
   getAnnouncements: (classId) =>
     api.post('/class/announcements', { class_id: classId }),
 
+  // 平台内容查询
+  getSystemAnnouncements: fetchSystemAnnouncements,
+  getPlatformBookshelf: fetchPlatformBookshelf,
+  viewPlatformBookshelfAttachment,
+  downloadPlatformBookshelfAttachment,
+
   // AI对话接口（SSE流式，返回fetch Response）
   aiChatStream: async (data, signal) => {
-    const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8001/api/student/ai/chat', {
+    const token = localStorage.getItem('token');
+    return fetch(`${apiBaseURL}/student/ai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        Authorization: token ? `Bearer ${token}` : ''
       },
       body: JSON.stringify(data),
       signal
-    })
-    return response
+    });
   },
 
   // 查询支持的AI模型列表
-  getAIModels: () => api.get('/student/ai/models')
+  getAIModels: () => api.get('/student/ai/models'),
+
+  // 查询用户AI会话列表（按时间倒序）
+  getAISessions: (page = 1, pageSize = 50) =>
+    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
+
+  // 查询某会话的消息列表
+  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
 };
 
 // ==================== 学生接口 ====================
 export const studentAPI = {
   // 发送注册验证码
-  sendRegisterCode: (phoneNumber) => 
+  sendRegisterCode: (phoneNumber) =>
     api.post('/student/auth/send-code-register', { phone_number: phoneNumber }),
-  
+
   // 发送登录验证码
-  sendLoginCode: (phoneNumber) => 
+  sendLoginCode: (phoneNumber) =>
     api.post('/student/auth/send-code-login', { phone_number: phoneNumber }),
-  
+
   // 短信验证码注册
-  registerWithSMS: (phoneNumber, code, studentNumber, password) => 
-    api.post('/student/auth/register-sms', { 
-      phone_number: phoneNumber, 
-      code, 
+  registerWithSMS: (phoneNumber, code, studentNumber, password) =>
+    api.post('/student/auth/register-sms', {
+      phone_number: phoneNumber,
+      code,
       student_number: studentNumber,
-      password 
+      password
     }),
-  
+
   // 短信验证码登录
-  loginWithSMS: (phoneNumber, code) => 
+  loginWithSMS: (phoneNumber, code) =>
     api.post('/student/auth/login-sms', { phone_number: phoneNumber, code }),
-  
+
   // 密码登录
-  loginWithPassword: (studentNumber, password) => 
+  loginWithPassword: (studentNumber, password) =>
     api.post('/student/auth/login-password', { student_number: studentNumber, password }),
-  
+
   // 登出
-  logout: () => 
-    api.post('/student/auth/logout'),
+  logout: () => api.post('/student/auth/logout'),
 
   // 查询学生已加入的班级列表
   getStudentClasses: (studentId, page = 1, pageSize = 50) =>
@@ -243,12 +296,10 @@ export const studentAPI = {
     api.post('/student/class/join', { student_id: studentId, class_code: classCode }),
 
   // 查询班级章节列表（含小节，师生共用）
-  getClassChapters: (classId) =>
-    api.post('/class/chapters', { class_id: classId }),
+  getClassChapters: (classId) => api.post('/class/chapters', { class_id: classId }),
 
   // 查询单题详情
-  getProblem: (id) =>
-    api.get('/problem/get', { params: { id } }),
+  getProblem: (id) => api.get('/problem/get', { params: { id } }),
 
   // 提交代码运行/测试任务
   submitCodeRun: (problemId, language, code, runType, testInput) =>
@@ -261,49 +312,54 @@ export const studentAPI = {
     }),
 
   // 查询代码运行结果（轮询）
-  getCodeRunResult: (runId) =>
-    api.get('/student/code/result', { params: { run_id: runId } }),
+  getCodeRunResult: (runId) => api.get('/student/code/result', { params: { run_id: runId } }),
 
   // 查询学生某题的运行记录列表（最新 10 条，倒序）
-  getCodeRunRecords: (problemId) =>
-    api.get('/student/code/records', { params: { problem_id: problemId } }),
+  getCodeRunRecords: (problemId) => api.get('/student/code/records', { params: { problem_id: problemId } }),
 
   // 批量查询学生已完全通过的题目ID集合（用于课程目录打钩）
-  getCodeProgress: (problemIds) =>
-    api.get('/student/code/progress', { params: { problem_ids: problemIds.join(',') } }),
+  getCodeProgress: (problemIds) => api.get('/student/code/progress', { params: { problem_ids: problemIds.join(',') } }),
 
   // 查询班级公告列表（师生共用）
-  getAnnouncements: (classId) =>
-    api.post('/class/announcements', { class_id: classId }),
+  getAnnouncements: (classId) => api.post('/class/announcements', { class_id: classId }),
+
+  // 平台内容查询
+  getSystemAnnouncements: fetchSystemAnnouncements,
+  getPlatformBookshelf: fetchPlatformBookshelf,
+  viewPlatformBookshelfAttachment,
+  downloadPlatformBookshelfAttachment,
 
   // AI答疑接口（SSE流式，返回fetch Response）
   aiChatStream: async (data, signal) => {
-    const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8001/api/student/ai/chat', {
+    const token = localStorage.getItem('token');
+    return fetch(`${apiBaseURL}/student/ai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        Authorization: token ? `Bearer ${token}` : ''
       },
       body: JSON.stringify(data),
       signal
-    })
-    return response
+    });
   },
 
   // 查询支持的AI模型列表
-  getAIModels: () => api.get('/student/ai/models')
+  getAIModels: () => api.get('/student/ai/models'),
+
+  // 查询用户AI会话列表（按时间倒序）
+  getAISessions: (page = 1, pageSize = 50) =>
+    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
+
+  // 查询某会话的消息列表
+  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
 };
 
 // ==================== 题库接口 ====================
 export const problemAPI = {
-  // 查询题库列表（支持关键词搜索和难度筛选）
   listProblems: (keyword = '', difficulty = '', page = 1, pageSize = 20) =>
     api.get('/problem/list', { params: { keyword, difficulty, page, page_size: pageSize } }),
-
-  // 查询单题详情
-  getProblem: (id) =>
-    api.get('/problem/get', { params: { id } })
+  getProblem: (id) => api.get('/problem/get', { params: { id } })
 };
 
 export default api;

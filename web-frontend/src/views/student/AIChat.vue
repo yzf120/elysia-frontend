@@ -136,8 +136,14 @@
                 </div>
                 <div v-show="msg.thinkExpanded" class="think-content" v-html="formatMessage(msg.thinkContent)"></div>
               </div>
+              <!-- AI 消息内容为空时显示 loading 动画 -->
+              <div v-if="msg.role === 'assistant' && !msg.content && !msg.thinkContent" class="message-text">
+                <div class="loading-dots">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
               <!-- 正文内容 -->
-              <div class="message-text">
+              <div v-else class="message-text">
                 <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
                 <!-- 图片预览 -->
                 <div v-if="msg.images && msg.images.length > 0" class="message-images">
@@ -154,19 +160,7 @@
               </div>
             </div>
 
-            <!-- 加载中提示 -->
-            <div v-if="isLoading" class="message-item assistant">
-              <div class="message-avatar">
-                <el-avatar :size="40" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                  <el-icon><ChatDotRound /></el-icon>
-                </el-avatar>
-              </div>
-              <div class="message-content">
-                <div class="loading-dots">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
 
@@ -409,28 +403,26 @@ const createNewSession = () => {
 // 加载会话
 const loadSession = async (sessionId) => {
   try {
-    currentSessionId.value = sessionId;
-    // TODO: 调用API加载会话内容
-    // 模拟数据
-    messages.value = [
-      {
-        role: 'user',
-        content: '请解释一下快速排序算法的原理',
-        time: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        role: 'assistant',
-        content: '快速排序是一种**分治算法**，其基本思想是：\n1. 选择一个基准元素\n2. 将数组分为两部分，小于基准的在左边，大于基准的在右边\n3. 递归地对左右两部分进行排序\n\n时间复杂度：平均O(n log n)，最坏O(n²)',
-        time: new Date(Date.now() - 3500000).toISOString()
-      }
-    ];
-    await nextTick();
-    scrollToBottom();
+    currentSessionId.value = sessionId
+    messages.value = []
+    // 调用 API 加载会话消息
+    const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
+    const convList = res?.data?.conversations || []
+    // 按 message_seq 排序
+    convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
+    messages.value = convList.map(c => ({
+      role: c.sender_type === 2 ? 'assistant' : 'user',
+      content: c.message_content || '',
+      displayContent: c.message_content || '',
+      time: c.send_time || c.create_time
+    }))
+    await nextTick()
+    scrollToBottom()
   } catch (error) {
-    console.error('加载会话失败:', error);
-    ElMessage.error('加载会话失败');
+    console.error('加载会话失败:', error)
+    ElMessage.error('加载会话失败')
   }
-};
+}
 
 // 处理键盘事件，Ctrl+Enter 发送
 const handleKeydown = (e) => {
@@ -488,6 +480,7 @@ const sendMessage = async () => {
   try {
     abortController = new AbortController();
     const response = await studentAPI.aiChatStream({
+      session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
       model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
@@ -586,6 +579,21 @@ const sendMessage = async () => {
   } finally {
     isLoading.value = false;
     abortController = null;
+    // 如果是首轮对话（之前没有 sessionId），延迟刷新会话列表并更新 currentSessionId
+    if (!currentSessionId.value) {
+      setTimeout(async () => {
+        const prevIds = new Set(sessions.value.map(s => s.id))
+        await loadSessions()
+        // 找到新增的会话（即首轮对话创建的会话）
+        const newSession = sessions.value.find(s => !prevIds.has(s.id))
+        if (newSession) {
+          currentSessionId.value = newSession.id
+        }
+      }, 1500) // 等待后端异步写入完成
+    } else {
+      // 非首轮对话，刷新会话列表（更新 last_interact_time）
+      setTimeout(() => loadSessions(), 1500)
+    }
   }
 };
 
@@ -707,24 +715,18 @@ const goBack = () => {
 // 加载历史会话列表
 const loadSessions = async () => {
   try {
-    // TODO: 调用API获取会话列表
-    // 模拟数据
-    sessions.value = [
-      {
-        id: 1,
-        title: '快速排序算法讨论',
-        updateTime: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 2,
-        title: '数据结构课后习题',
-        updateTime: new Date(Date.now() - 86400000).toISOString()
-      }
-    ];
+    const res = await studentAPI.getAISessions(1, 50)
+    const list = res?.data?.sessions || []
+    sessions.value = list.map(s => ({
+      id: s.session_id,
+      title: s.session_title || '未命名会话',
+      updateTime: s.last_interact_time || s.create_time,
+      problemId: s.problem_id || 0
+    })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
   } catch (error) {
-    console.error('加载会话列表失败:', error);
+    console.error('加载会话列表失败:', error)
   }
-};
+}
 
 // 监听路由参数，如果携带题目信息则自动填充
 watch(() => route.query.question, (question) => {

@@ -39,10 +39,59 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #F9FAFB;
 }
 
 #app {
   width: 100%;
   min-height: 100vh;
+}
+
+/* 清新明亮风格全局样式 */
+.gradient-bg {
+  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 50%, #E0F2FE 100%);
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.fresh-primary {
+  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  color: white;
+}
+
+.fresh-success {
+  background: linear-gradient(135deg, #34D399 0%, #10B981 100%);
+  color: white;
+}
+
+.fresh-warning {
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  color: white;
+}
+
+.fresh-danger {
+  background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
+  color: white;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
 }
 </style>

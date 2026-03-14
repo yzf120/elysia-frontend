@@ -9,10 +9,11 @@ const Register = () => import('../views/Register.vue');
 // 管理员页面组件
 const AdminDashboard = () => import('../views/admin/Dashboard.vue');
 const KnowledgeManagement = () => import('../views/admin/KnowledgeManagement.vue');
+const BookshelfManagement = () => import('../views/admin/BookshelfManagement.vue');
+const AnnouncementManagement = () => import('../views/admin/AnnouncementManagement.vue');
 const UserManagement = () => import('../views/admin/UserManagement.vue');
 const ModelManagement = () => import('../views/admin/ModelManagement.vue');
 const TeacherAudit = () => import('../views/admin/TeacherAudit.vue');
-const AnnouncementPublish = () => import('../views/admin/AnnouncementPublish.vue');
 const AdminProfile = () => import('../views/admin/AdminProfile.vue');
 
 // 教师端页面组件
@@ -72,6 +73,22 @@ const routes = [
     meta: { title: '知识库管理', requiresAuth: true, role: 'admin' }
   },
   {
+    path: '/admin/bookshelf',
+    name: 'BookshelfManagement',
+    component: BookshelfManagement,
+    meta: { title: '平台书架', requiresAuth: true, role: 'admin' }
+  },
+  {
+    path: '/admin/announcements',
+    name: 'AnnouncementManagement',
+    component: AnnouncementManagement,
+    meta: { title: '系统公告管理', requiresAuth: true, role: 'admin' }
+  },
+  {
+    path: '/admin/announcement',
+    redirect: '/admin/announcements'
+  },
+  {
     path: '/admin/users',
     name: 'UserManagement',
     component: UserManagement,
@@ -88,12 +105,6 @@ const routes = [
     name: 'TeacherAudit',
     component: TeacherAudit,
     meta: { title: '教师认证审核', requiresAuth: true, role: 'admin' }
-  },
-  {
-    path: '/admin/announcement',
-    name: 'AnnouncementPublish',
-    component: AnnouncementPublish,
-    meta: { title: '公告发布', requiresAuth: true, role: 'admin' }
   },
   {
     path: '/admin/profile',

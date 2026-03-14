@@ -189,7 +189,15 @@ export const teacherAPI = {
       signal
     })
     return response
-  }
+  },
+
+  // 查询用户AI会话列表（按时间倒序）
+  getAISessions: (page = 1, pageSize = 50) =>
+    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
+
+  // 查询某会话的消息列表
+  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
 }
 
 // ==================== 学生接口 ====================
@@ -285,7 +293,15 @@ export const studentAPI = {
   },
 
   // 查询支持的AI模型列表
-  getAIModels: () => api.get('/student/ai/models')
+  getAIModels: () => api.get('/student/ai/models'),
+
+  // 查询用户AI会话列表（按时间倒序）
+  getAISessions: (page = 1, pageSize = 50) =>
+    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
+
+  // 查询某会话的消息列表
+  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
 }
 
 // ==================== 题库接口 ====================

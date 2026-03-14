@@ -210,7 +210,13 @@
                 </div>
                 <div v-show="msg.thinkExpanded" class="think-content" v-html="formatMessage(msg.thinkContent)"></div>
               </div>
-              <div class="message-text">
+              <!-- AI 消息内容为空时显示 loading 动画 -->
+              <div v-if="msg.role === 'assistant' && !msg.content && !msg.thinkContent" class="message-text">
+                <div class="typing-indicator">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+              <div v-else class="message-text">
                 <span v-html="formatMessage(msg.displayContent || msg.content)"></span>
                 <!-- 图片预览 -->
                 <div v-if="msg.images && msg.images.length > 0" class="message-images">
@@ -230,21 +236,7 @@
             </div>
           </div>
 
-          <!-- 加载中提示 - 优化动画 -->
-          <div v-if="isLoading" class="message-item assistant loading-message">
-            <div class="message-avatar">
-              <div class="ai-avatar loading">
-                <van-icon name="chat-o" size="24" />
-              </div>
-            </div>
-            <div class="message-content">
-              <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -482,21 +474,18 @@ const loadSession = async (sessionId) => {
   try {
     currentSessionId.value = sessionId
     showSidebar.value = false
-    
-    // TODO: 调用API加载会话内容
-    messages.value = [
-      {
-        role: 'user',
-        content: '请解释一下快速排序算法的原理',
-        time: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        role: 'assistant',
-        content: '快速排序是一种**分治算法**，其基本思想是：\n1. 选择一个基准元素\n2. 将数组分为两部分\n3. 递归排序',
-        time: new Date(Date.now() - 3500000).toISOString()
-      }
-    ]
-    
+    messages.value = []
+    const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
+    const convList = res?.data?.conversations || []
+    convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
+    messages.value = convList.map(c => ({
+      role: c.sender_type === 2 ? 'assistant' : 'user',
+      content: c.message_content || '',
+      displayContent: c.message_content || '',
+      thinkContent: '',
+      thinkExpanded: false,
+      time: c.send_time || c.create_time
+    }))
     await nextTick()
     scrollToBottom()
   } catch (error) {
@@ -552,6 +541,7 @@ const sendMessage = async () => {
   try {
     abortController = new AbortController()
     const response = await studentAPI.aiChatStream({
+      session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
       model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
@@ -644,6 +634,15 @@ const sendMessage = async () => {
   } finally {
     isLoading.value = false
     abortController = null
+    // 发送完成后刷新会话列表，首轮对话后自动更新 currentSessionId
+    setTimeout(async () => {
+      const prevIds = new Set(sessions.value.map(s => s.id))
+      await loadSessions()
+      if (!currentSessionId.value) {
+        const newSession = sessions.value.find(s => !prevIds.has(s.id))
+        if (newSession) currentSessionId.value = newSession.id
+      }
+    }, 1500)
   }
 }
 
@@ -777,19 +776,13 @@ const goBack = () => {
 // 加载历史会话列表
 const loadSessions = async () => {
   try {
-    // TODO: 调用API获取会话列表
-    sessions.value = [
-      {
-        id: 1,
-        title: '快速排序算法讨论',
-        updateTime: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 2,
-        title: '数据结构课后习题',
-        updateTime: new Date(Date.now() - 86400000).toISOString()
-      }
-    ]
+    const res = await studentAPI.getAISessions(1, 50)
+    const list = res?.data?.sessions || []
+    sessions.value = list.map(s => ({
+      id: s.session_id,
+      title: s.session_title || '未命名会话',
+      updateTime: s.last_interact_time || s.create_time
+    })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
   } catch (error) {
     console.error('加载会话列表失败:', error)
   }

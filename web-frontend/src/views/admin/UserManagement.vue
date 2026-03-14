@@ -1,40 +1,8 @@
 <template>
   <div class="admin-layout">
-    <!-- 侧边栏 -->
-    <el-aside width="240px" class="admin-sidebar">
-      <div class="sidebar-logo">
-        <el-icon style="margin-right: 8px;"><Platform /></el-icon>
-        Elysia 管理端
-      </div>
-      <el-menu
-        :default-active="activeMenu"
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
-        router
-      >
-        <el-menu-item index="/admin/dashboard">
-          <el-icon><HomeFilled /></el-icon>
-          <span>管理员首页</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/knowledge">
-          <el-icon><Reading /></el-icon>
-          <span>知识库管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/users">
-          <el-icon><User /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/models">
-          <el-icon><Setting /></el-icon>
-          <span>模型管理</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
+    <AdminSidebar :active-menu="activeMenu" />
 
-    <!-- 主内容区 -->
     <div class="admin-main">
-      <!-- 顶部导航栏 -->
       <el-header class="admin-header" height="60px">
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/admin/dashboard' }">首页</el-breadcrumb-item>
@@ -52,26 +20,52 @@
         </div>
       </el-header>
 
-      <!-- 内容区域 -->
       <div class="admin-content">
         <div class="page-container fade-in">
           <el-tabs v-model="activeTab" type="card">
-            <!-- 学生用户 Tab -->
             <el-tab-pane label="学生用户" name="student">
-              <div class="table-toolbar">
-                <div class="toolbar-left">
+              <div class="table-toolbar toolbar-stack">
+                <div class="toolbar-left toolbar-grid">
                   <el-input
-                    v-model="studentSearch"
+                    v-model="studentFilters.keyword"
                     placeholder="搜索手机号、姓名、学号"
-                    style="width: 300px;"
+                    style="width: 260px;"
                     clearable
-                    @keyup.enter="loadStudents"
+                    @clear="loadStudents(true)"
+                    @keyup.enter="loadStudents(true)"
                   >
                     <template #prefix>
                       <el-icon><Search /></el-icon>
                     </template>
                   </el-input>
-                  <el-button type="primary" @click="loadStudents">
+                  <el-input
+                    v-model="studentFilters.major"
+                    placeholder="按专业筛选"
+                    style="width: 180px;"
+                    clearable
+                    @clear="loadStudents(true)"
+                    @keyup.enter="loadStudents(true)"
+                  />
+                  <el-input
+                    v-model="studentFilters.grade"
+                    placeholder="按年级筛选"
+                    style="width: 160px;"
+                    clearable
+                    @clear="loadStudents(true)"
+                    @keyup.enter="loadStudents(true)"
+                  />
+                  <el-select
+                    v-model="studentFilters.status"
+                    placeholder="账号状态"
+                    clearable
+                    style="width: 140px;"
+                    @change="loadStudents(true)"
+                  >
+                    <el-option label="全部状态" value="" />
+                    <el-option label="正常" value="enabled" />
+                    <el-option label="已禁用" value="disabled" />
+                  </el-select>
+                  <el-button type="primary" @click="loadStudents(true)">
                     <el-icon><Search /></el-icon>
                     搜索
                   </el-button>
@@ -81,15 +75,15 @@
                   </el-button>
                 </div>
                 <div class="toolbar-right">
-                  <el-button 
-                    @click="handleBatchAction('student', 'disable')" 
+                  <el-button
+                    @click="handleBatchAction('student', 'disable')"
                     :disabled="selectedStudents.length === 0"
                   >
                     <el-icon><Lock /></el-icon>
                     批量禁用
                   </el-button>
-                  <el-button 
-                    @click="handleBatchAction('student', 'enable')" 
+                  <el-button
+                    @click="handleBatchAction('student', 'enable')"
                     :disabled="selectedStudents.length === 0"
                   >
                     <el-icon><Unlock /></el-icon>
@@ -103,41 +97,42 @@
               </div>
 
               <el-table
-                v-loading="loading"
+                v-loading="studentLoading"
                 :data="students"
                 stripe
+                row-key="studentId"
                 @selection-change="handleStudentSelectionChange"
               >
                 <el-table-column type="selection" width="55" />
-                <el-table-column prop="phoneNumber" label="手机号" width="130" />
-                <el-table-column prop="name" label="姓名" width="100" />
-                <el-table-column prop="studentNumber" label="学号" width="130" />
-                <el-table-column prop="major" label="专业" min-width="150" />
-                <el-table-column prop="grade" label="年级" width="100" />
+                <el-table-column prop="phoneNumber" label="手机号" width="140" />
+                <el-table-column prop="name" label="姓名" width="120" />
+                <el-table-column prop="studentNumber" label="学号" width="140" />
+                <el-table-column prop="major" label="专业" min-width="180" />
+                <el-table-column prop="grade" label="年级" width="120" />
                 <el-table-column prop="registerTime" label="注册时间" width="180" />
-                <el-table-column prop="status" label="账号状态" width="100">
+                <el-table-column prop="status" label="账号状态" width="110">
                   <template #default="{ row }">
                     <el-tag :type="row.status === '正常' ? 'success' : 'danger'">
                       {{ row.status }}
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="150" fixed="right">
+                <el-table-column label="操作" width="160" fixed="right">
                   <template #default="{ row }">
-                    <el-button 
-                      v-if="row.status === '正常'" 
-                      type="warning" 
-                      size="small" 
-                      link 
+                    <el-button
+                      v-if="row.status === '正常'"
+                      type="warning"
+                      size="small"
+                      link
                       @click="handleToggleStatus(row, 'student')"
                     >
                       禁用
                     </el-button>
-                    <el-button 
-                      v-else 
-                      type="success" 
-                      size="small" 
-                      link 
+                    <el-button
+                      v-else
+                      type="success"
+                      size="small"
+                      link
                       @click="handleToggleStatus(row, 'student')"
                     >
                       启用
@@ -155,27 +150,58 @@
                 :total="studentTotal"
                 :page-sizes="[10, 20, 50, 100]"
                 layout="total, sizes, prev, pager, next, jumper"
-                @size-change="loadStudents"
-                @current-change="loadStudents"
+                @size-change="handleStudentPageSizeChange"
+                @current-change="handleStudentPageChange"
               />
             </el-tab-pane>
 
-            <!-- 教师用户 Tab -->
             <el-tab-pane label="教师用户" name="teacher">
-              <div class="table-toolbar">
-                <div class="toolbar-left">
+              <div class="table-toolbar toolbar-stack">
+                <div class="toolbar-left toolbar-grid">
                   <el-input
-                    v-model="teacherSearch"
-                    placeholder="搜索工号、邮箱、姓名"
-                    style="width: 300px;"
+                    v-model="teacherFilters.keyword"
+                    placeholder="搜索工号、邮箱、姓名、手机号"
+                    style="width: 280px;"
                     clearable
-                    @keyup.enter="loadTeachers"
+                    @clear="loadTeachers(true)"
+                    @keyup.enter="loadTeachers(true)"
                   >
                     <template #prefix>
                       <el-icon><Search /></el-icon>
                     </template>
                   </el-input>
-                  <el-button type="primary" @click="loadTeachers">
+                  <el-input
+                    v-model="teacherFilters.department"
+                    placeholder="按院系筛选"
+                    style="width: 180px;"
+                    clearable
+                    @clear="loadTeachers(true)"
+                    @keyup.enter="loadTeachers(true)"
+                  />
+                  <el-select
+                    v-model="teacherFilters.verificationStatus"
+                    placeholder="审核状态"
+                    clearable
+                    style="width: 140px;"
+                    @change="loadTeachers(true)"
+                  >
+                    <el-option label="全部审核" value="" />
+                    <el-option label="已通过" value="approved" />
+                    <el-option label="待审核" value="pending" />
+                    <el-option label="已驳回" value="rejected" />
+                  </el-select>
+                  <el-select
+                    v-model="teacherFilters.status"
+                    placeholder="账号状态"
+                    clearable
+                    style="width: 140px;"
+                    @change="loadTeachers(true)"
+                  >
+                    <el-option label="全部状态" value="" />
+                    <el-option label="正常" value="enabled" />
+                    <el-option label="已禁用" value="disabled" />
+                  </el-select>
+                  <el-button type="primary" @click="loadTeachers(true)">
                     <el-icon><Search /></el-icon>
                     搜索
                   </el-button>
@@ -185,21 +211,15 @@
                   </el-button>
                 </div>
                 <div class="toolbar-right">
-                  <el-select v-model="teacherAuditFilter" placeholder="审核状态" style="width: 120px;" @change="loadTeachers">
-                    <el-option label="全部" value="" />
-                    <el-option label="已通过" value="approved" />
-                    <el-option label="待审核" value="pending" />
-                    <el-option label="已驳回" value="rejected" />
-                  </el-select>
-                  <el-button 
-                    @click="handleBatchAction('teacher', 'disable')" 
+                  <el-button
+                    @click="handleBatchAction('teacher', 'disable')"
                     :disabled="selectedTeachers.length === 0"
                   >
                     <el-icon><Lock /></el-icon>
                     批量禁用
                   </el-button>
-                  <el-button 
-                    @click="handleBatchAction('teacher', 'enable')" 
+                  <el-button
+                    @click="handleBatchAction('teacher', 'enable')"
                     :disabled="selectedTeachers.length === 0"
                   >
                     <el-icon><Unlock /></el-icon>
@@ -213,25 +233,26 @@
               </div>
 
               <el-table
-                v-loading="loading"
+                v-loading="teacherLoading"
                 :data="teachers"
                 stripe
+                row-key="teacherId"
                 @selection-change="handleTeacherSelectionChange"
               >
                 <el-table-column type="selection" width="55" />
-                <el-table-column prop="employeeNumber" label="工号" width="130" />
-                <el-table-column prop="name" label="姓名" width="100" />
-                <el-table-column prop="email" label="学校邮箱" min-width="200" />
-                <el-table-column prop="department" label="院系" width="150" />
-                <el-table-column prop="title" label="职称" width="100" />
-                <el-table-column prop="auditStatus" label="审核状态" width="100">
+                <el-table-column prop="employeeNumber" label="工号" width="140" />
+                <el-table-column prop="name" label="姓名" width="120" />
+                <el-table-column prop="email" label="学校邮箱" min-width="220" />
+                <el-table-column prop="department" label="院系" width="160" />
+                <el-table-column prop="title" label="职称" width="120" />
+                <el-table-column prop="auditStatus" label="审核状态" width="110">
                   <template #default="{ row }">
                     <el-tag v-if="row.auditStatus === '已通过'" type="success">已通过</el-tag>
                     <el-tag v-else-if="row.auditStatus === '待审核'" type="warning">待审核</el-tag>
                     <el-tag v-else type="danger">已驳回</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="status" label="账号状态" width="100">
+                <el-table-column prop="status" label="账号状态" width="110">
                   <template #default="{ row }">
                     <el-tag :type="row.status === '正常' ? 'success' : 'danger'">
                       {{ row.status }}
@@ -240,29 +261,29 @@
                 </el-table-column>
                 <el-table-column label="操作" width="180" fixed="right">
                   <template #default="{ row }">
-                    <el-button 
-                      v-if="row.status === '正常'" 
-                      type="warning" 
-                      size="small" 
-                      link 
+                    <el-button
+                      v-if="row.status === '正常'"
+                      type="warning"
+                      size="small"
+                      link
                       @click="handleToggleStatus(row, 'teacher')"
                     >
                       禁用
                     </el-button>
-                    <el-button 
-                      v-else 
-                      type="success" 
-                      size="small" 
-                      link 
+                    <el-button
+                      v-else
+                      type="success"
+                      size="small"
+                      link
                       @click="handleToggleStatus(row, 'teacher')"
                     >
                       启用
                     </el-button>
-                    <el-button 
-                      v-if="row.auditStatus !== '已通过'" 
-                      type="primary" 
-                      size="small" 
-                      link 
+                    <el-button
+                      v-if="row.auditStatus !== '已通过'"
+                      type="primary"
+                      size="small"
+                      link
                       @click="handleReaudit(row)"
                     >
                       重新审核
@@ -280,8 +301,8 @@
                 :total="teacherTotal"
                 :page-sizes="[10, 20, 50, 100]"
                 layout="total, sizes, prev, pager, next, jumper"
-                @size-change="loadTeachers"
-                @current-change="loadTeachers"
+                @size-change="handleTeacherPageSizeChange"
+                @current-change="handleTeacherPageChange"
               />
             </el-tab-pane>
           </el-tabs>
@@ -292,151 +313,170 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import * as XLSX from 'xlsx';
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import AdminSidebar from '@/components/admin/AdminSidebar.vue'
+import { adminAPI } from '@/services'
+import { downloadBlob } from '@/utils/file'
 
-const router = useRouter();
-const activeTab = ref('student');
-const activeMenu = computed(() => router.currentRoute.value.path);
-const loading = ref(false);
+const router = useRouter()
+const activeTab = ref('student')
+const activeMenu = computed(() => router.currentRoute.value.path)
 
-// 学生用户
-const studentSearch = ref('');
-const students = ref([
-  {
-    id: 1,
-    phoneNumber: '13800138001',
-    name: '张三',
-    studentNumber: '2024001',
-    major: '计算机科学与技术',
-    grade: '2024级',
-    registerTime: '2026-01-15 10:30:00',
-    status: '正常'
-  },
-  {
-    id: 2,
-    phoneNumber: '13800138002',
-    name: '李四',
-    studentNumber: '2024002',
-    major: '软件工程',
-    grade: '2024级',
-    registerTime: '2026-01-16 14:20:00',
-    status: '正常'
-  },
-  {
-    id: 3,
-    phoneNumber: '13800138003',
-    name: '王五',
-    studentNumber: '2023015',
-    major: '人工智能',
-    grade: '2023级',
-    registerTime: '2025-09-10 09:00:00',
-    status: '已禁用'
+const studentLoading = ref(false)
+const teacherLoading = ref(false)
+
+const studentFilters = ref({
+  keyword: '',
+  major: '',
+  grade: '',
+  status: ''
+})
+const teacherFilters = ref({
+  keyword: '',
+  department: '',
+  verificationStatus: '',
+  status: ''
+})
+
+const students = ref([])
+const teachers = ref([])
+const selectedStudents = ref([])
+const selectedTeachers = ref([])
+
+const studentPage = ref(1)
+const studentPageSize = ref(10)
+const studentTotal = ref(0)
+const teacherPage = ref(1)
+const teacherPageSize = ref(10)
+const teacherTotal = ref(0)
+
+const mapStudent = (item = {}) => ({
+  id: item.student_id,
+  studentId: item.student_id,
+  phoneNumber: item.phone_number || '—',
+  name: item.student_name || '—',
+  studentNumber: item.student_number || '—',
+  email: item.email || '—',
+  major: item.major || '—',
+  grade: item.grade || '—',
+  programmingLevel: item.programming_level || '—',
+  registerTime: item.create_time || '—',
+  status: item.status_label || '—',
+  rawStatus: Number(item.status ?? 0)
+})
+
+const mapTeacher = (item = {}) => ({
+  id: item.teacher_id,
+  teacherId: item.teacher_id,
+  phoneNumber: item.phone_number || '—',
+  name: item.teacher_name || '—',
+  employeeNumber: item.employee_number || '—',
+  email: item.school_email || '—',
+  department: item.department || '—',
+  title: item.title || '—',
+  auditStatus: item.verification_status_label || '待审核',
+  rawVerificationStatus: Number(item.verification_status ?? 0),
+  status: item.status_label || '—',
+  rawStatus: Number(item.status ?? 0),
+  registerTime: item.create_time || '—'
+})
+
+const getStudentQueryParams = () => ({
+  page: studentPage.value,
+  page_size: studentPageSize.value,
+  keyword: studentFilters.value.keyword.trim() || undefined,
+  major: studentFilters.value.major.trim() || undefined,
+  grade: studentFilters.value.grade.trim() || undefined,
+  status: studentFilters.value.status || undefined
+})
+
+const getTeacherQueryParams = () => ({
+  page: teacherPage.value,
+  page_size: teacherPageSize.value,
+  keyword: teacherFilters.value.keyword.trim() || undefined,
+  department: teacherFilters.value.department.trim() || undefined,
+  verification_status: teacherFilters.value.verificationStatus || undefined,
+  status: teacherFilters.value.status || undefined
+})
+
+const loadStudents = async (resetPage = false) => {
+  if (resetPage) {
+    studentPage.value = 1
   }
-]);
-const selectedStudents = ref([]);
-const studentPage = ref(1);
-const studentPageSize = ref(10);
-const studentTotal = ref(3);
-
-// 教师用户
-const teacherSearch = ref('');
-const teacherAuditFilter = ref('');
-const teachers = ref([
-  {
-    id: 1,
-    employeeNumber: 'T20240001',
-    name: '张教授',
-    email: 'zhang@university.edu.cn',
-    department: '计算机学院',
-    title: '教授',
-    auditStatus: '已通过',
-    status: '正常'
-  },
-  {
-    id: 2,
-    employeeNumber: 'T20240002',
-    name: '李老师',
-    email: 'li@university.edu.cn',
-    department: '数学学院',
-    title: '讲师',
-    auditStatus: '待审核',
-    status: '正常'
-  },
-  {
-    id: 3,
-    employeeNumber: 'T20240003',
-    name: '王副教授',
-    email: 'wang@university.edu.cn',
-    department: '物理学院',
-    title: '副教授',
-    auditStatus: '已通过',
-    status: '已禁用'
-  }
-]);
-const selectedTeachers = ref([]);
-const teacherPage = ref(1);
-const teacherPageSize = ref(10);
-const teacherTotal = ref(3);
-
-// 加载学生列表
-const loadStudents = async () => {
-  loading.value = true;
+  studentLoading.value = true
   try {
-    // TODO: 调用API加载学生列表
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const response = await adminAPI.listAdminStudents(getStudentQueryParams())
+    students.value = Array.isArray(response.students) ? response.students.map(mapStudent) : []
+    studentTotal.value = Number(response.total || 0)
+    selectedStudents.value = []
   } catch (error) {
-    ElMessage.error('加载失败：' + error);
+    ElMessage.error(`加载学生列表失败：${error}`)
   } finally {
-    loading.value = false;
+    studentLoading.value = false
   }
-};
+}
 
-// 加载教师列表
-const loadTeachers = async () => {
-  loading.value = true;
+const loadTeachers = async (resetPage = false) => {
+  if (resetPage) {
+    teacherPage.value = 1
+  }
+  teacherLoading.value = true
   try {
-    // TODO: 调用API加载教师列表
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const response = await adminAPI.listAdminTeachers(getTeacherQueryParams())
+    teachers.value = Array.isArray(response.teachers) ? response.teachers.map(mapTeacher) : []
+    teacherTotal.value = Number(response.total || 0)
+    selectedTeachers.value = []
   } catch (error) {
-    ElMessage.error('加载失败：' + error);
+    ElMessage.error(`加载教师列表失败：${error}`)
   } finally {
-    loading.value = false;
+    teacherLoading.value = false
   }
-};
+}
 
-// 刷新
 const handleRefresh = (type) => {
   if (type === 'student') {
-    studentSearch.value = '';
-    loadStudents();
-  } else {
-    teacherSearch.value = '';
-    teacherAuditFilter.value = '';
-    loadTeachers();
+    studentFilters.value = { keyword: '', major: '', grade: '', status: '' }
+    studentPage.value = 1
+    loadStudents()
+    return
   }
-};
+  teacherFilters.value = { keyword: '', department: '', verificationStatus: '', status: '' }
+  teacherPage.value = 1
+  loadTeachers()
+}
 
-// 学生选择变化
 const handleStudentSelectionChange = (selection) => {
-  selectedStudents.value = selection;
-};
+  selectedStudents.value = selection
+}
 
-// 教师选择变化
 const handleTeacherSelectionChange = (selection) => {
-  selectedTeachers.value = selection;
-};
+  selectedTeachers.value = selection
+}
 
-// 切换账号状态
+const updateStudentStatus = async (studentIds, status) => {
+  await adminAPI.batchUpdateAdminStudentsStatus({
+    student_ids: studentIds,
+    status
+  })
+}
+
+const updateTeacherStatus = async (teacherIds, status) => {
+  await adminAPI.batchUpdateAdminTeachersStatus({
+    teacher_ids: teacherIds,
+    status
+  })
+}
+
 const handleToggleStatus = (row, type) => {
-  const action = row.status === '正常' ? '禁用' : '启用';
-  const userName = type === 'student' ? row.name : row.name;
-  
+  const isDisable = row.status === '正常'
+  const actionText = isDisable ? '禁用' : '启用'
+  const targetStatus = isDisable ? 'disabled' : 'enabled'
+
   ElMessageBox.confirm(
-    `确定要${action}用户"${userName}"吗？`,
-    `确认${action}`,
+    `确定要${actionText}用户“${row.name}”吗？`,
+    `确认${actionText}`,
     {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
@@ -444,21 +484,28 @@ const handleToggleStatus = (row, type) => {
     }
   ).then(async () => {
     try {
-      // TODO: 调用API切换状态
-      await new Promise(resolve => setTimeout(resolve, 500));
-      row.status = row.status === '正常' ? '已禁用' : '正常';
-      ElMessage.success(`${action}成功`);
+      if (type === 'student') {
+        await updateStudentStatus([row.studentId], targetStatus)
+        await loadStudents()
+      } else {
+        await updateTeacherStatus([row.teacherId], targetStatus)
+        await loadTeachers()
+      }
+      ElMessage.success(`${actionText}成功`)
     } catch (error) {
-      ElMessage.error(`${action}失败：` + error);
+      ElMessage.error(`${actionText}失败：${error}`)
     }
-  });
-};
+  }).catch(() => {})
+}
 
-// 批量操作
 const handleBatchAction = (type, action) => {
-  const selected = type === 'student' ? selectedStudents.value : selectedTeachers.value;
-  const actionText = action === 'disable' ? '禁用' : '启用';
-  
+  const selected = type === 'student' ? selectedStudents.value : selectedTeachers.value
+  if (!selected.length) {
+    return
+  }
+  const actionText = action === 'disable' ? '禁用' : '启用'
+  const targetStatus = action === 'disable' ? 'disabled' : 'enabled'
+
   ElMessageBox.confirm(
     `确定要${actionText}选中的 ${selected.length} 个用户吗？`,
     `确认${actionText}`,
@@ -469,97 +516,166 @@ const handleBatchAction = (type, action) => {
     }
   ).then(async () => {
     try {
-      // TODO: 调用API批量操作
-      await new Promise(resolve => setTimeout(resolve, 500));
-      ElMessage.success(`批量${actionText}成功`);
       if (type === 'student') {
-        loadStudents();
+        await updateStudentStatus(selected.map(item => item.studentId), targetStatus)
+        await loadStudents()
       } else {
-        loadTeachers();
+        await updateTeacherStatus(selected.map(item => item.teacherId), targetStatus)
+        await loadTeachers()
       }
+      ElMessage.success(`批量${actionText}成功`)
     } catch (error) {
-      ElMessage.error(`批量${actionText}失败：` + error);
+      ElMessage.error(`批量${actionText}失败：${error}`)
     }
-  });
-};
+  }).catch(() => {})
+}
 
-// 查看详情
 const handleViewDetail = (row, type) => {
+  const detailLines = type === 'student'
+    ? [
+        ['姓名', row.name],
+        ['学号', row.studentNumber],
+        ['手机号', row.phoneNumber],
+        ['邮箱', row.email],
+        ['专业', row.major],
+        ['年级', row.grade],
+        ['编程基础', row.programmingLevel],
+        ['账号状态', row.status],
+        ['注册时间', row.registerTime]
+      ]
+    : [
+        ['姓名', row.name],
+        ['工号', row.employeeNumber],
+        ['手机号', row.phoneNumber],
+        ['学校邮箱', row.email],
+        ['院系', row.department],
+        ['职称', row.title],
+        ['审核状态', row.auditStatus],
+        ['账号状态', row.status],
+        ['注册时间', row.registerTime]
+      ]
+
   ElMessageBox.alert(
-    `<div style="text-align: left;">
-      <p><strong>姓名：</strong>${row.name}</p>
-      <p><strong>${type === 'student' ? '学号' : '工号'}：</strong>${type === 'student' ? row.studentNumber : row.employeeNumber}</p>
-      <p><strong>${type === 'student' ? '手机号' : '邮箱'}：</strong>${type === 'student' ? row.phoneNumber : row.email}</p>
-      <p><strong>${type === 'student' ? '专业' : '院系'}：</strong>${type === 'student' ? row.major : row.department}</p>
-      <p><strong>状态：</strong>${row.status}</p>
-    </div>`,
+    detailLines.map(([label, value]) => `${label}：${value || '—'}`).join('\n'),
     '用户详情',
     {
-      dangerouslyUseHTMLString: true,
       confirmButtonText: '关闭'
     }
-  );
-};
+  )
+}
 
-// 重新审核
-const handleReaudit = (row) => {
-  router.push({
-    path: '/admin/teacher-audit',
-    query: { id: row.id }
-  });
-};
-
-// 导出列表
-const handleExport = (type) => {
+const handleReaudit = async (row) => {
   try {
-    const data = type === 'student' ? students.value : teachers.value;
-    const fileName = type === 'student' ? '学生用户列表' : '教师用户列表';
-    
-    // 准备导出数据
-    const exportData = data.map(item => {
-      if (type === 'student') {
-        return {
-          '手机号': item.phoneNumber,
-          '姓名': item.name,
-          '学号': item.studentNumber,
-          '专业': item.major,
-          '年级': item.grade,
-          '注册时间': item.registerTime,
-          '账号状态': item.status
-        };
-      } else {
-        return {
-          '工号': item.employeeNumber,
-          '姓名': item.name,
-          '学校邮箱': item.email,
-          '院系': item.department,
-          '职称': item.title,
-          '审核状态': item.auditStatus,
-          '账号状态': item.status
-        };
-      }
-    });
-    
-    // 创建工作簿
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type === 'student' ? '学生用户' : '教师用户');
-    
-    // 导出文件
-    XLSX.writeFile(wb, `${fileName}_${new Date().getTime()}.xlsx`);
-    
-    ElMessage.success('导出成功');
-  } catch (error) {
-    ElMessage.error('导出失败：' + error);
-  }
-};
+    const approvalResponse = await adminAPI.getTeacherApproval(row.teacherId)
+    if (!approvalResponse || !approvalResponse.approval) {
+      ElMessage.error('未找到该教师的审核单')
+      return
+    }
 
-onMounted(() => {
-  loadStudents();
-  loadTeachers();
-});
+    const approval = approvalResponse.approval
+    ElMessageBox.prompt(
+      `教师姓名：${row.name}\n工号：${row.employeeNumber}\n当前状态：${row.auditStatus}\n请填写审核意见：`,
+      approval.approval_status === 2 ? '重新审核' : '进行审核',
+      {
+        confirmButtonText: '通过',
+        cancelButtonText: '驳回',
+        inputPlaceholder: '请输入审核意见',
+        inputType: 'textarea',
+        distinguishCancelAndClose: true,
+        showCancelButton: true
+      }
+    ).then(async ({ value }) => {
+      // 通过
+      await adminAPI.approveTeacher(approval.approval_id, {
+        approved: true,
+        remark: value || '审核通过'
+      })
+      ElMessage.success('审核通过成功')
+      await loadTeachers()
+    }).catch(async (action) => {
+      if (action === 'cancel') {
+        // 驳回
+        const { value } = await ElMessageBox.prompt(
+          '请填写驳回理由：',
+          '审核驳回',
+          {
+            confirmButtonText: '确定驳回',
+            cancelButtonText: '取消',
+            inputPlaceholder: '请输入驳回理由',
+            inputType: 'textarea',
+            inputValidator: (val) => val && val.trim() ? true : '驳回理由不能为空'
+          }
+        )
+        await adminAPI.approveTeacher(approval.approval_id, {
+          approved: false,
+          remark: value
+        })
+        ElMessage.success('审核驳回成功')
+        await loadTeachers()
+      }
+    })
+  } catch (error) {
+    ElMessage.error(`审核操作失败：${error}`)
+  }
+}
+
+const handleExport = async (type) => {
+  try {
+    if (type === 'student') {
+      const blob = await adminAPI.exportAdminStudents(getStudentQueryParams())
+      downloadBlob(blob, `学生用户列表_${Date.now()}.csv`)
+    } else {
+      const blob = await adminAPI.exportAdminTeachers(getTeacherQueryParams())
+      downloadBlob(blob, `教师用户列表_${Date.now()}.csv`)
+    }
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error(`导出失败：${error}`)
+  }
+}
+
+const handleStudentPageSizeChange = (size) => {
+  studentPageSize.value = size
+  studentPage.value = 1
+  loadStudents()
+}
+
+const handleStudentPageChange = (page) => {
+  studentPage.value = page
+  loadStudents()
+}
+
+const handleTeacherPageSizeChange = (size) => {
+  teacherPageSize.value = size
+  teacherPage.value = 1
+  loadTeachers()
+}
+
+const handleTeacherPageChange = (page) => {
+  teacherPage.value = page
+  loadTeachers()
+}
+
+onMounted(async () => {
+  await Promise.all([loadStudents(), loadTeachers()])
+})
 </script>
 
 <style scoped>
 @import '@/styles/admin.css';
+
+.toolbar-stack {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-grid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 </style>

@@ -1,36 +1,6 @@
 <template>
   <div class="admin-layout">
-    <!-- 侧边栏 -->
-    <el-aside width="240px" class="admin-sidebar">
-      <div class="sidebar-logo">
-        <el-icon style="margin-right: 8px;"><Platform /></el-icon>
-        Elysia 管理端
-      </div>
-      <el-menu
-        :default-active="activeMenu"
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
-        router
-      >
-        <el-menu-item index="/admin/dashboard">
-          <el-icon><HomeFilled /></el-icon>
-          <span>管理员首页</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/knowledge">
-          <el-icon><Reading /></el-icon>
-          <span>知识库管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/users">
-          <el-icon><User /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/models">
-          <el-icon><Setting /></el-icon>
-          <span>模型管理</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
+    <AdminSidebar :active-menu="activeMenu" />
 
     <!-- 主内容区 -->
     <div class="admin-main">
@@ -113,6 +83,14 @@
                   <div class="quick-action-icon">📚</div>
                   <div class="quick-action-text">知识库管理</div>
                 </div>
+                <div class="quick-action-btn" @click="$router.push('/admin/bookshelf')">
+                  <div class="quick-action-icon">🗂️</div>
+                  <div class="quick-action-text">平台书架</div>
+                </div>
+                <div class="quick-action-btn" @click="$router.push('/admin/announcements')">
+                  <div class="quick-action-icon">📢</div>
+                  <div class="quick-action-text">系统公告管理</div>
+                </div>
                 <div class="quick-action-btn" @click="$router.push('/admin/users')">
                   <div class="quick-action-icon">👥</div>
                   <div class="quick-action-text">用户管理</div>
@@ -120,10 +98,6 @@
                 <div class="quick-action-btn" @click="$router.push('/admin/models')">
                   <div class="quick-action-icon">⚙️</div>
                   <div class="quick-action-text">模型管理</div>
-                </div>
-                <div class="quick-action-btn" @click="$router.push('/admin/announcement')">
-                  <div class="quick-action-icon">📢</div>
-                  <div class="quick-action-text">系统公告发布</div>
                 </div>
               </div>
             </el-tab-pane>
@@ -191,6 +165,7 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import AdminSidebar from '@/components/admin/AdminSidebar.vue';
 import * as echarts from 'echarts';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -296,12 +271,12 @@ const initChart = () => {
         smooth: true,
         data: [1850, 2100, 2350, 2200, 2450, 2300, 2584],
         itemStyle: {
-          color: '#409EFF'
+          color: '#10B981'
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-            { offset: 1, color: 'rgba(64, 158, 255, 0.05)' }
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
           ])
         }
       }

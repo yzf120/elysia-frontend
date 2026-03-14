@@ -1,6 +1,5 @@
 <template>
   <div class="student-dashboard">
-    <!-- 顶部导航栏 -->
     <div class="top-nav">
       <div class="nav-left">
         <el-breadcrumb separator="/">
@@ -16,16 +15,13 @@
       </div>
     </div>
 
-    <!-- 欢迎语 -->
     <div class="welcome-section">
       <h2>{{ greeting }}，{{ studentName }}</h2>
       <p class="welcome-subtitle">今天也要加油学习哦！</p>
     </div>
 
-    <!-- 主内容区 - Tab切换 -->
     <div class="main-content">
       <el-tabs v-model="activeTab" class="content-tabs">
-        <!-- 待办事项Tab -->
         <el-tab-pane label="待办事项" name="todo">
           <div v-if="todoList.length === 0" class="empty-state">
             <el-empty description="暂无待办事项">
@@ -33,9 +29,9 @@
             </el-empty>
           </div>
           <div v-else class="todo-list">
-            <el-card 
-              v-for="item in todoList" 
-              :key="item.id" 
+            <el-card
+              v-for="item in todoList"
+              :key="item.id"
               class="todo-item"
               shadow="hover"
             >
@@ -48,19 +44,16 @@
                   <el-icon><Reading /></el-icon>
                   {{ item.subject }}
                 </span>
-                <span class="deadline" :class="{ 'urgent': isUrgent(item.deadline) }">
+                <span class="deadline" :class="{ urgent: isUrgent(item.deadline) }">
                   <el-icon><Clock /></el-icon>
                   截止时间：{{ formatDate(item.deadline) }}
                 </span>
               </div>
               <div class="todo-actions">
-                <el-button type="primary" size="small" @click="goToTask(item)">
-                  去完成
-                </el-button>
+                <el-button type="primary" size="small" @click="goToTask(item)">去完成</el-button>
               </div>
             </el-card>
           </div>
-          <!-- 分页 -->
           <el-pagination
             v-if="todoList.length > 0"
             class="pagination"
@@ -72,7 +65,6 @@
           />
         </el-tab-pane>
 
-        <!-- 班级公告Tab -->
         <el-tab-pane label="班级公告" name="class">
           <div v-if="classAnnouncements.length === 0" class="empty-state">
             <el-empty description="暂无班级公告">
@@ -80,9 +72,9 @@
             </el-empty>
           </div>
           <div v-else class="announcement-list">
-            <el-card 
-              v-for="item in classAnnouncements" 
-              :key="item.id" 
+            <el-card
+              v-for="item in classAnnouncements"
+              :key="item.id"
               class="announcement-item"
               shadow="hover"
             >
@@ -100,12 +92,9 @@
                   {{ formatDate(item.publishTime) }}
                 </span>
               </div>
-              <div class="announcement-content">
-                {{ item.content }}
-              </div>
+              <div class="announcement-content">{{ item.content }}</div>
             </el-card>
           </div>
-          <!-- 分页 -->
           <el-pagination
             v-if="classAnnouncements.length > 0"
             class="pagination"
@@ -117,7 +106,6 @@
           />
         </el-tab-pane>
 
-        <!-- 系统公告Tab -->
         <el-tab-pane label="系统公告" name="system">
           <div v-if="systemAnnouncements.length === 0" class="empty-state">
             <el-empty description="暂无系统公告">
@@ -125,32 +113,29 @@
             </el-empty>
           </div>
           <div v-else class="announcement-list">
-            <el-card 
-              v-for="item in systemAnnouncements" 
-              :key="item.id" 
+            <el-card
+              v-for="item in systemAnnouncements"
+              :key="item.announcement_id"
               class="announcement-item"
               shadow="hover"
             >
               <div class="announcement-header">
                 <h3>{{ item.title }}</h3>
-                <el-tag type="warning" size="small">系统</el-tag>
+                <el-tag :type="priorityTagType(item.priority)" size="small">{{ priorityLabel(item.priority) }}</el-tag>
               </div>
               <div class="announcement-meta">
                 <span>
                   <el-icon><User /></el-icon>
-                  管理员
+                  {{ item.publisher_name || '管理员' }}
                 </span>
                 <span>
                   <el-icon><Clock /></el-icon>
-                  {{ formatDate(item.publishTime) }}
+                  {{ formatDate(item.publish_time) }}
                 </span>
               </div>
-              <div class="announcement-content">
-                {{ item.content }}
-              </div>
+              <div class="announcement-content">{{ item.content }}</div>
             </el-card>
           </div>
-          <!-- 分页 -->
           <el-pagination
             v-if="systemAnnouncements.length > 0"
             class="pagination"
@@ -161,10 +146,55 @@
             @current-change="loadSystemAnnouncements"
           />
         </el-tab-pane>
+
+        <el-tab-pane label="平台书架" name="bookshelf">
+          <div v-if="bookshelfItems.length === 0" class="empty-state">
+            <el-empty description="暂无平台书架内容">
+              <el-icon :size="80" color="#d3d3d3"><Collection /></el-icon>
+            </el-empty>
+          </div>
+          <div v-else class="announcement-list">
+            <el-card
+              v-for="item in bookshelfItems"
+              :key="item.item_id"
+              class="announcement-item"
+              shadow="hover"
+            >
+              <div class="announcement-header">
+                <h3>{{ item.title }}</h3>
+                <el-tag type="success" size="small">{{ item.content_type_label }}</el-tag>
+              </div>
+              <div class="announcement-meta">
+                <span>
+                  <el-icon><Clock /></el-icon>
+                  {{ formatDate(item.publish_time) }}
+                </span>
+                <span v-if="item.has_attachment">
+                  <el-icon><Document /></el-icon>
+                  {{ item.attachment_name }}
+                </span>
+              </div>
+              <div v-if="item.description" class="announcement-content">{{ item.description }}</div>
+              <div class="resource-actions">
+                <el-button v-if="item.external_url" type="primary" link @click="openExternalLink(item.external_url)">打开链接</el-button>
+                <el-button v-if="item.has_attachment" type="primary" link @click="handleViewAttachment(item)">预览附件</el-button>
+                <el-button v-if="item.has_attachment" type="primary" link @click="handleDownloadAttachment(item)">下载附件</el-button>
+              </div>
+            </el-card>
+          </div>
+          <el-pagination
+            v-if="bookshelfItems.length > 0"
+            class="pagination"
+            v-model:current-page="bookshelfPage"
+            :page-size="10"
+            layout="prev, pager, next"
+            :total="bookshelfTotal"
+            @current-change="loadBookshelfItems"
+          />
+        </el-tab-pane>
       </el-tabs>
     </div>
 
-    <!-- 快捷入口区 -->
     <div class="quick-access">
       <h3 class="section-title">快捷入口</h3>
       <div class="access-cards">
@@ -210,14 +240,12 @@
       </div>
     </div>
 
-    <!-- 加入班级对话框 -->
     <el-dialog
       v-model="joinClassVisible"
       title="加入班级"
       width="480px"
       :close-on-click-modal="false"
     >
-      <!-- 输入验证码步骤 -->
       <div v-if="joinStep === 'input'">
         <el-form :model="joinForm" label-width="100px">
           <el-form-item label="班级验证码">
@@ -232,7 +260,6 @@
         </el-form>
       </div>
 
-      <!-- 班级信息展示步骤 -->
       <div v-else-if="joinStep === 'confirm'">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="班级名称">{{ classInfo.class_name }}</el-descriptions-item>
@@ -258,36 +285,28 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { studentAPI } from '@/services/index';
-import { User, Clock, Reading, Bell, DocumentChecked, ChatDotRound, DocumentCopy, Star, CirclePlus } from '@element-plus/icons-vue';
+import { downloadBlob, openBlobInNewTab } from '@/utils/file';
 
 const router = useRouter();
-
-// 学生信息
 const studentName = ref(localStorage.getItem('userName') || '同学');
-
-// 当前激活的Tab
 const activeTab = ref('todo');
-
-// 待办事项数据
 const todoList = ref([]);
 const todoPage = ref(1);
 const todoTotal = ref(0);
-
-// 班级公告数据
 const classAnnouncements = ref([]);
 const classPage = ref(1);
 const classTotal = ref(0);
-
-// 系统公告数据
 const systemAnnouncements = ref([]);
 const systemPage = ref(1);
 const systemTotal = ref(0);
+const bookshelfItems = ref([]);
+const bookshelfPage = ref(1);
+const bookshelfTotal = ref(0);
 
-// 根据时间生成问候语
 const greeting = computed(() => {
   const hour = new Date().getHours();
   if (hour < 6) return '凌晨好';
@@ -297,14 +316,25 @@ const greeting = computed(() => {
   return '晚上好';
 });
 
-// 格式化日期
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
-// 判断是否紧急（距离截止时间小于24小时）
+const priorityLabel = (priority) => {
+  if (priority === 'high') return '高优先级';
+  if (priority === 'low') return '低优先级';
+  return '普通';
+};
+
+const priorityTagType = (priority) => {
+  if (priority === 'high') return 'danger';
+  if (priority === 'low') return 'info';
+  return 'warning';
+};
+
 const isUrgent = (deadline) => {
   if (!deadline) return false;
   const now = new Date();
@@ -313,21 +343,17 @@ const isUrgent = (deadline) => {
   return diff > 0 && diff < 24 * 60 * 60 * 1000;
 };
 
-// 获取任务类型颜色
 const getTaskTypeColor = (type) => {
   const colorMap = {
-    '讨论': 'primary',
-    '作业': 'success',
-    '考试': 'danger'
+    讨论: 'primary',
+    作业: 'success',
+    考试: 'danger'
   };
   return colorMap[type] || 'info';
 };
 
-// 加载待办事项列表
 const loadTodoList = async () => {
   try {
-    // TODO: 调用API获取待办事项
-    // 模拟数据
     todoList.value = [
       {
         id: 1,
@@ -358,13 +384,11 @@ const loadTodoList = async () => {
   }
 };
 
-// 加载班级公告（查询该学生所在全部班级的公告，按时间倒序）
 const loadClassAnnouncements = async () => {
   try {
     const studentId = localStorage.getItem('userId') || localStorage.getItem('studentId');
     if (!studentId) return;
 
-    // 1. 获取学生所在的全部班级
     const classRes = await studentAPI.getStudentClasses(studentId);
     const classes = classRes?.data?.classes || classRes?.classes || [];
     if (classes.length === 0) {
@@ -373,12 +397,10 @@ const loadClassAnnouncements = async () => {
       return;
     }
 
-    // 2. 并发查询每个班级的公告
     const results = await Promise.allSettled(
       classes.map(cls => studentAPI.getAnnouncements(cls.class_id))
     );
 
-    // 3. 合并所有公告，附加班级名称，按发布时间倒序排列
     const allAnnouncements = [];
     results.forEach((result, idx) => {
       if (result.status === 'fulfilled') {
@@ -396,9 +418,7 @@ const loadClassAnnouncements = async () => {
       }
     });
 
-    // 按发布时间倒序
     allAnnouncements.sort((a, b) => new Date(b.publishTime) - new Date(a.publishTime));
-
     classAnnouncements.value = allAnnouncements;
     classTotal.value = allAnnouncements.length;
   } catch (error) {
@@ -407,62 +427,83 @@ const loadClassAnnouncements = async () => {
   }
 };
 
-// 加载系统公告
 const loadSystemAnnouncements = async () => {
   try {
-    // TODO: 调用API获取系统公告
-    // 模拟数据
-    systemAnnouncements.value = [
-      {
-        id: 1,
-        title: '系统维护通知',
-        publishTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        content: '系统将于本周六凌晨2:00-4:00进行维护升级，期间可能无法访问，请提前做好安排。'
-      }
-    ];
-    systemTotal.value = systemAnnouncements.value.length;
+    const res = await studentAPI.getSystemAnnouncements({
+      page: systemPage.value,
+      page_size: 10
+    });
+    systemAnnouncements.value = res.announcements || [];
+    systemTotal.value = res.total || systemAnnouncements.value.length;
   } catch (error) {
     console.error('加载系统公告失败:', error);
     ElMessage.error('加载系统公告失败');
   }
 };
 
-// 跳转到任务完成页面
-const goToTask = (task) => {
-  router.push({
-    name: 'TaskComplete',
-    query: { id: task.id, type: task.type }
-  });
+const loadBookshelfItems = async () => {
+  try {
+    const res = await studentAPI.getPlatformBookshelf({
+      page: bookshelfPage.value,
+      page_size: 10
+    });
+    bookshelfItems.value = res.bookshelf_items || [];
+    bookshelfTotal.value = res.total || bookshelfItems.value.length;
+  } catch (error) {
+    console.error('加载平台书架失败:', error);
+    ElMessage.error('加载平台书架失败');
+  }
 };
 
-// 跳转到个人信息中心
+const handleViewAttachment = async (item) => {
+  try {
+    const blob = await studentAPI.viewPlatformBookshelfAttachment(item.item_id);
+    openBlobInNewTab(blob);
+  } catch (error) {
+    ElMessage.error(`附件预览失败：${error}`);
+  }
+};
+
+const handleDownloadAttachment = async (item) => {
+  try {
+    const blob = await studentAPI.downloadPlatformBookshelfAttachment(item.item_id);
+    downloadBlob(blob, item.attachment_name || 'attachment');
+  } catch (error) {
+    ElMessage.error(`附件下载失败：${error}`);
+  }
+};
+
+const openExternalLink = (url) => {
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+const goToTask = (task) => {
+  router.push({ name: 'TaskComplete', query: { id: task.id, type: task.type } });
+};
+
 const goToProfile = () => {
   router.push({ name: 'StudentProfile' });
 };
 
-// 跳转到AI对话
 const goToAIChat = () => {
   router.push({ name: 'AIChat' });
 };
 
-// 跳转到课程学习
 const goToCourse = () => {
   router.push({ name: 'CourseStudy' });
 };
 
-// 跳转到错题本
 const goToWrongBook = () => {
   router.push({ name: 'WrongBook' });
 };
 
-// 跳转到我的收藏
 const goToCollection = () => {
   router.push({ name: 'SessionCollection' });
 };
 
-// 加入班级相关
 const joinClassVisible = ref(false);
-const joinStep = ref('input'); // 'input' | 'confirm'
+const joinStep = ref('input');
 const joinForm = ref({ classCode: '' });
 const classInfo = ref({});
 const queryLoading = ref(false);
@@ -489,7 +530,7 @@ const queryClassByCode = async () => {
     } else {
       ElMessage.error('班级不存在，请检查验证码');
     }
-  } catch (err) {
+  } catch {
     ElMessage.error('班级不存在，请检查验证码');
   } finally {
     queryLoading.value = false;
@@ -514,11 +555,11 @@ const confirmJoinClass = async () => {
   }
 };
 
-// 页面加载时获取数据
 onMounted(() => {
   loadTodoList();
   loadClassAnnouncements();
   loadSystemAnnouncements();
+  loadBookshelfItems();
 });
 </script>
 
@@ -528,7 +569,6 @@ onMounted(() => {
   background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
   padding: 20px;
 
-  // 顶部导航栏
   .top-nav {
     display: flex;
     justify-content: space-between;
@@ -546,15 +586,12 @@ onMounted(() => {
       }
     }
 
-    .nav-right {
-      .el-button {
-        font-size: 16px;
-        font-weight: 500;
-      }
+    .nav-right .el-button {
+      font-size: 16px;
+      font-weight: 500;
     }
   }
 
-  // 欢迎语区域
   .welcome-section {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -576,7 +613,6 @@ onMounted(() => {
     }
   }
 
-  // 主内容区
   .main-content {
     background: white;
     border-radius: 12px;
@@ -595,13 +631,11 @@ onMounted(() => {
       }
     }
 
-    // 空状态
     .empty-state {
       padding: 60px 0;
       text-align: center;
     }
 
-    // 待办事项列表
     .todo-list {
       .todo-item {
         margin-bottom: 15px;
@@ -630,6 +664,7 @@ onMounted(() => {
           margin-bottom: 15px;
           font-size: 14px;
           color: #606266;
+          flex-wrap: wrap;
 
           span {
             display: flex;
@@ -649,7 +684,6 @@ onMounted(() => {
       }
     }
 
-    // 公告列表
     .announcement-list {
       .announcement-item {
         margin-bottom: 15px;
@@ -664,6 +698,7 @@ onMounted(() => {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 12px;
+          gap: 12px;
 
           h3 {
             margin: 0;
@@ -679,6 +714,7 @@ onMounted(() => {
           margin-bottom: 12px;
           font-size: 14px;
           color: #909399;
+          flex-wrap: wrap;
 
           span {
             display: flex;
@@ -692,10 +728,16 @@ onMounted(() => {
           color: #606266;
           line-height: 1.6;
         }
+
+        .resource-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 12px;
+        }
       }
     }
 
-    // 分页
     .pagination {
       margin-top: 20px;
       display: flex;
@@ -703,7 +745,6 @@ onMounted(() => {
     }
   }
 
-  // 快捷入口区
   .quick-access {
     background: white;
     border-radius: 12px;
@@ -764,7 +805,6 @@ onMounted(() => {
   }
 }
 
-// 响应式布局
 @media (max-width: 768px) {
   .student-dashboard {
     padding: 10px;
