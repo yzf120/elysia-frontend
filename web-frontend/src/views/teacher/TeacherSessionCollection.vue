@@ -6,7 +6,7 @@
         返回首页
       </el-button>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item>学生端</el-breadcrumb-item>
+        <el-breadcrumb-item>教师端</el-breadcrumb-item>
         <el-breadcrumb-item>我的收藏</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
@@ -24,49 +24,37 @@
         <el-tag
           :type="selectedSource === '' ? 'primary' : 'info'"
           class="source-tag"
-          @click="selectedSource = ''"
+          @click="selectedSource = ''; loadFavorites()"
         >全部</el-tag>
         <el-tag
-          :type="selectedSource === 'ai_chat' ? 'primary' : 'info'"
+          :type="selectedSource === 'teacher_ai_chat' ? 'primary' : 'info'"
           class="source-tag"
-          @click="selectedSource = 'ai_chat'"
+          @click="selectedSource = 'teacher_ai_chat'; loadFavorites()"
         >AI对话</el-tag>
-        <el-tag
-          :type="selectedSource === 'problem_chat' ? 'primary' : 'info'"
-          class="source-tag"
-          @click="selectedSource = 'problem_chat'"
-        >编程答疑</el-tag>
       </div>
 
       <div v-if="isLoading" class="loading-state">
         <el-skeleton :rows="3" animated />
       </div>
-      <div v-else-if="filteredFavorites.length === 0" class="empty-state">
+      <div v-else-if="favorites.length === 0" class="empty-state">
         <el-empty description="暂无收藏的会话" />
       </div>
       <div v-else class="session-list">
-        <el-card v-for="item in filteredFavorites" :key="item.session_id" class="session-item" shadow="hover">
+        <el-card v-for="item in filteredFavorites" :key="item.id" class="session-item" shadow="hover">
           <div class="session-header">
             <h3>{{ item.session_title || '未命名会话' }}</h3>
             <div class="session-tags">
-              <el-tag size="small" :type="item.problem_id > 0 ? 'warning' : 'primary'">
-                {{ item.problem_id > 0 ? '编程答疑' : 'AI对话' }}
-              </el-tag>
-              <el-tag v-if="item.problem_id > 0" size="small" type="warning">题目 #{{ item.problem_id }}</el-tag>
+              <el-tag size="small" :type="getSourceTagType(item.source)">{{ getSourceName(item.source) }}</el-tag>
             </div>
           </div>
           <div class="session-meta">
             <el-icon><Clock /></el-icon>
-            <span>{{ formatDate(item.create_time) }}</span>
+            <span>收藏于 {{ formatDate(item.create_time) }}</span>
           </div>
           <div class="session-actions">
             <el-button type="primary" size="small" @click="viewSession(item)">
               <el-icon><ChatDotRound /></el-icon>
               查看会话
-            </el-button>
-            <el-button v-if="item.problem_id > 0" type="warning" size="small" @click="gotoProblem(item.problem_id)">
-              <el-icon><Link /></el-icon>
-              跳转到编程题
             </el-button>
             <el-button type="danger" size="small" @click="uncollect(item.session_id)">
               <el-icon><Delete /></el-icon>
@@ -94,8 +82,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Clock, Link, Delete } from '@element-plus/icons-vue';
-import { studentAPI } from '@/services/index.js';
+import { Clock, Delete } from '@element-plus/icons-vue';
+import { teacherAPI } from '@/services/index.js';
 
 const router = useRouter();
 
@@ -106,22 +94,25 @@ const pageSize = ref(20);
 const isLoading = ref(false);
 const selectedSource = ref('');
 
-// 根据 problem_id 判断来源类型
-const getItemSource = (item) => {
-  return item.problem_id > 0 ? 'problem_chat' : 'ai_chat';
+const getSourceName = (source) => {
+  const map = { ai_chat: '主页AI对话', teacher_ai_chat: 'AI对话', problem_chat: '编程答疑' };
+  return map[source] || source;
 };
 
-// 筛选后的收藏列表
+const getSourceTagType = (source) => {
+  const map = { ai_chat: 'primary', teacher_ai_chat: 'success', problem_chat: 'warning' };
+  return map[source] || 'info';
+};
+
 const filteredFavorites = computed(() => {
   if (!selectedSource.value) return favorites.value;
-  return favorites.value.filter(f => getItemSource(f) === selectedSource.value);
+  return favorites.value.filter(f => f.source === selectedSource.value);
 });
 
-// 加载收藏列表
 const loadFavorites = async () => {
   isLoading.value = true;
   try {
-    const res = await studentAPI.listFavorites(currentPage.value, pageSize.value);
+    const res = await teacherAPI.listFavorites(currentPage.value, pageSize.value);
     const data = res?.data;
     favorites.value = data?.favorites || [];
     total.value = data?.total || 0;
@@ -138,26 +129,13 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN');
 };
 
-// 查看会话 - 根据会话来源跳转到对应页面
 const viewSession = (item) => {
-  if (item.problem_id > 0) {
-    // 编程题会话 → 跳转到编程题页面并自动加载该会话
-    router.push({ name: 'ProblemCode', params: { problemId: item.problem_id }, query: { sessionId: item.session_id } });
-  } else {
-    // 普通AI对话 → 跳转到AI对话页面并自动加载该会话
-    router.push({ name: 'AIChat', query: { sessionId: item.session_id } });
-  }
+  router.push({ name: 'TeacherAIChat', query: { sessionId: item.session_id } });
 };
 
-// 跳转到编程题
-const gotoProblem = (problemId) => {
-  router.push({ name: 'ProblemCode', params: { problemId: problemId } });
-};
-
-// 取消收藏
 const uncollect = async (sessionId) => {
   try {
-    await studentAPI.unfavoriteSession(sessionId);
+    await teacherAPI.unfavoriteSession(sessionId);
     favorites.value = favorites.value.filter(f => f.session_id !== sessionId);
     total.value = Math.max(0, total.value - 1);
     ElMessage.success('已取消收藏');
@@ -168,7 +146,7 @@ const uncollect = async (sessionId) => {
 };
 
 const goBack = () => {
-  router.push({ name: 'StudentDashboard' });
+  router.push({ name: 'TeacherDashboard' });
 };
 
 onMounted(() => {
@@ -193,7 +171,7 @@ onMounted(() => {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 
     :deep(.el-button--primary) {
-      background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
+      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
       border: none;
     }
   }
@@ -219,11 +197,16 @@ onMounted(() => {
         cursor: pointer;
         padding: 8px 16px;
         transition: all 0.3s;
-        &:hover { transform: translateY(-2px); }
+
+        &:hover {
+          transform: translateY(-2px);
+        }
       }
     }
 
-    .loading-state { padding: 20px; }
+    .loading-state {
+      padding: 20px;
+    }
 
     .session-list {
       display: grid;
@@ -232,6 +215,7 @@ onMounted(() => {
       .session-item {
         border-radius: 10px;
         transition: all 0.3s;
+
         &:hover {
           transform: translateY(-2px);
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
@@ -242,8 +226,14 @@ onMounted(() => {
           justify-content: space-between;
           align-items: flex-start;
           margin-bottom: 10px;
-          h3 { margin: 0; font-size: 16px; font-weight: 600; color: #303133; flex: 1; }
-          .session-tags { display: flex; gap: 6px; flex-shrink: 0; }
+
+          h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+            flex: 1;
+          }
         }
 
         .session-meta {
@@ -255,7 +245,10 @@ onMounted(() => {
           margin-bottom: 12px;
         }
 
-        .session-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .session-actions {
+          display: flex;
+          gap: 10px;
+        }
       }
     }
 

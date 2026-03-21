@@ -3,6 +3,7 @@
     <van-nav-bar title="AI对话" left-arrow @click-left="$router.back()">
       <template #right>
         <div style="display:flex;gap:12px;align-items:center">
+          <van-icon :name="isFavorited ? 'star' : 'star-o'" :color="isFavorited ? '#ffa940' : ''" size="20" @click="collectSession" />
           <van-icon name="bars" size="20" @click="showSidebar = true" />
           <van-icon name="plus" size="20" @click="createNewSession" />
         </div>
@@ -36,7 +37,7 @@
               <div class="session-title">{{ s.title }}</div>
               <div class="session-time">{{ formatSessionTime(s.updateTime) }}</div>
             </div>
-            <van-icon v-if="currentSessionId === s.id" name="success" size="16" color="#667eea" />
+            <van-icon v-if="currentSessionId === s.id" name="success" size="16" color="#4F6EF7" />
           </div>
           <van-empty v-if="filteredSessions.length === 0" description="暂无会话记录" image-size="80" />
         </div>
@@ -174,6 +175,8 @@ const loadSession = async (sessionId) => {
     currentSessionId.value = sessionId
     showSidebar.value = false
     messages.value = []
+    // 检查收藏状态
+    checkFavoriteStatus()
     const res = await teacherAPI.getAISessionMessages(sessionId, 1, 200)
     const convList = res?.data?.conversations || []
     convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
@@ -314,8 +317,36 @@ const sendMessage = async () => {
     }, abortController.signal)
 
     if (!response.ok) {
+      const respContentType = response.headers.get('Content-Type') || ''
+      if (respContentType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          showToast(errMsg || '您的AI对话功能已被禁止使用。')
+          messages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          isLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const contentType = response.headers.get('Content-Type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        showToast(errMsg || '您的消息被系统拦截，请规范用语。')
+        messages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        isLoading.value = false
+        return
+      }
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     const reader = response.body.getReader()
@@ -388,6 +419,49 @@ onMounted(async () => {
   }
   await loadSessions()
 })
+
+// 收藏状态
+const isFavorited = ref(false)
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!currentSessionId.value) {
+    isFavorited.value = false
+    return
+  }
+  try {
+    const res = await teacherAPI.checkFavorite(currentSessionId.value)
+    isFavorited.value = res?.data?.data?.is_favorited || false
+  } catch (e) {
+    console.error('检查收藏状态失败:', e)
+  }
+}
+
+// 收藏/取消收藏会话
+const collectSession = async () => {
+  if (messages.value.length === 0) {
+    showToast('当前会话为空，无法收藏')
+    return
+  }
+  if (!currentSessionId.value) {
+    showToast('请先发送一条消息创建会话')
+    return
+  }
+  try {
+    if (isFavorited.value) {
+      await teacherAPI.unfavoriteSession(currentSessionId.value)
+      isFavorited.value = false
+      showToast('已取消收藏')
+    } else {
+      await teacherAPI.favoriteSession(currentSessionId.value)
+      isFavorited.value = true
+      showToast('会话已收藏')
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e)
+    showToast('操作失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -482,7 +556,7 @@ onMounted(async () => {
 }
 
 .message-item.user .msg-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   color: #fff;
 }
 
@@ -508,7 +582,7 @@ onMounted(async () => {
 .loading-dots span {
   width: 8px;
   height: 8px;
-  background: #667eea;
+  background: #4F6EF7;
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out both;
 }
@@ -545,7 +619,7 @@ onMounted(async () => {
   height: 56px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(79, 110, 247, 0.3);
 }
 
 .pending-image-remove {
@@ -635,7 +709,7 @@ onMounted(async () => {
 
 .new-session-btn {
   margin: 12px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border: none;
   color: white;
   font-weight: 500;
@@ -662,7 +736,7 @@ onMounted(async () => {
 
 .session-item.active {
   background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
-  border-color: #667eea;
+  border-color: #4F6EF7;
 }
 
 .session-info {

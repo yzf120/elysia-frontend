@@ -286,11 +286,11 @@ onUnmounted(() => {
 <style scoped>
 .profile-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%);
+  background: linear-gradient(180deg, #F5F7FB 0%, #FFFFFF 100%);
 }
 
 .fresh-nav-bar {
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  background: #0F172A;
   :deep(.van-nav-bar__title) {
     color: white;
     font-weight: 600;
@@ -309,11 +309,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 20px;
   margin-bottom: 20px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%);
   border-radius: 20px;
   padding: 24px 20px;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.1);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  border: 1px solid #EAF0F8;
 }
 
 .user-avatar {
@@ -330,7 +330,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border-radius: 50%;
   position: relative;
   z-index: 1;
@@ -343,7 +343,7 @@ onUnmounted(() => {
   right: -4px;
   bottom: -4px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.3));
+  background: linear-gradient(135deg, rgba(79, 110, 247, 0.24), rgba(96, 165, 250, 0.16));
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -362,15 +362,12 @@ onUnmounted(() => {
   font-size: 20px;
   font-weight: 700;
   margin-bottom: 4px;
-  background: linear-gradient(135deg, #10B981, #06B6D4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #0F172A;
 }
 
 .user-info p {
   font-size: 14px;
-  color: #6B7280;
+  color: #64748B;
 }
 
 .info-section {
@@ -389,7 +386,7 @@ onUnmounted(() => {
 .info-group {
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.08);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
   background: white;
 }
 
@@ -399,9 +396,9 @@ onUnmounted(() => {
 }
 
 .action-btn {
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%) !important;
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%) !important;
   border: none !important;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 8px 16px rgba(79, 110, 247, 0.24);
   font-weight: 600;
   height: 48px;
   margin-bottom: 12px;
@@ -410,7 +407,7 @@ onUnmounted(() => {
 
 .action-btn:active {
   transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 10px rgba(79, 110, 247, 0.3);
 }
 
 .logout-btn {
@@ -447,7 +444,7 @@ onUnmounted(() => {
 }
 
 :deep(.van-field__button .van-button--primary) {
-  background: linear-gradient(135deg, #10B981, #06B6D4);
+  background: linear-gradient(135deg, #4F6EF7, #60A5FA);
   border: none;
   font-weight: 600;
 }

@@ -25,6 +25,24 @@ const router = createRouter({
       meta: { requiresAuth: true, userType: 'admin' }
     },
     {
+      path: '/admin/intent-dict',
+      name: 'admin-intent-dict',
+      component: () => import('@/views/admin/IntentDictManagement.vue'),
+      meta: { requiresAuth: true, userType: 'admin' }
+    },
+    {
+      path: '/admin/intent-prompt',
+      name: 'admin-intent-prompt',
+      component: () => import('@/views/admin/IntentPromptManagement.vue'),
+      meta: { requiresAuth: true, userType: 'admin' }
+    },
+    {
+      path: '/admin/intent-records',
+      name: 'admin-intent-records',
+      component: () => import('@/views/admin/IntentRecordManagement.vue'),
+      meta: { requiresAuth: true, userType: 'admin' }
+    },
+    {
       path: '/teacher/dashboard',
       name: 'teacher-dashboard',
       component: () => import('@/views/teacher/Dashboard.vue'),
@@ -120,6 +138,12 @@ const router = createRouter({
       path: '/teacher/ai-chat',
       name: 'teacher-ai-chat',
       component: () => import('@/views/teacher/TeacherAIChat.vue'),
+      meta: { requiresAuth: true, userType: 'teacher' }
+    },
+    {
+      path: '/teacher/collection',
+      name: 'teacher-session-collection',
+      component: () => import('@/views/student/SessionCollection.vue'),
       meta: { requiresAuth: true, userType: 'teacher' }
     },
     {

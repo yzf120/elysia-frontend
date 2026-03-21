@@ -79,7 +79,7 @@
               :speed="100"
               :stroke-width="60"
               size="60px"
-              :color="progressPercent === 100 ? '#07c160' : progressPercent > 0 ? '#667eea' : '#c8c9cc'"
+              :color="progressPercent === 100 ? '#07c160' : progressPercent > 0 ? '#4F6EF7' : '#c8c9cc'"
               layer-color="rgba(255,255,255,0.3)"
             >
               <span class="progress-text" :style="{ color: progressPercent === 100 ? '#07c160' : '#fff' }">{{ progressPercent }}%</span>
@@ -114,7 +114,7 @@
               <div class="chapter-title">
                 <van-icon
                   :name="isChapterDone(chapter) ? 'passed' : 'bookmark-o'"
-                  :color="isChapterDone(chapter) ? '#07c160' : '#667eea'"
+                  :color="isChapterDone(chapter) ? '#07c160' : '#4F6EF7'"
                   :size="isChapterDone(chapter) ? '22' : '18'"
                 />
                 <span :style="isChapterDone(chapter) ? 'color:#07c160;font-weight:600' : ''">{{ chapter.title }}</span>
@@ -336,12 +336,12 @@ const classList = ref([])
 
 // 预设卡片颜色（按班级索引循环使用）
 const cardColors = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)'
+  'linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%)',
+  'linear-gradient(135deg, #5B8CFF 0%, #7CB8FF 100%)',
+  'linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%)',
+  'linear-gradient(135deg, #34D399 0%, #2DD4BF 100%)',
+  'linear-gradient(135deg, #93C5FD 0%, #60A5FA 100%)',
+  'linear-gradient(135deg, #A5D8FF 0%, #7CB8FF 100%)'
 ]
 
 // 加载学生班级列表
@@ -369,6 +369,20 @@ const loadStudentClasses = async () => {
       // 保留原始字段以便进入班级时使用
       _raw: cls
     }))
+
+    // 查询各班级完成度
+    try {
+      const progressRes = await studentAPI.getClassProgress()
+      const progressList = progressRes?.data?.class_progress || []
+      for (const cp of progressList) {
+        const cls = classList.value.find(c => c.id === cp.class_id)
+        if (cls) {
+          cls.progress = cp.progress_percent || 0
+        }
+      }
+    } catch (e) {
+      console.warn('加载班级完成度失败:', e)
+    }
   } catch (e) {
     classListError.value = '班级加载失败：' + (e?.message || e)
   } finally {
@@ -606,7 +620,7 @@ const goToSubmit = () => {
 
 /* 课程信息卡片 */
 .course-info-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   border-radius: 14px;
   padding: 16px 20px;
   margin-bottom: 16px;
@@ -690,7 +704,7 @@ const goToSubmit = () => {
 .diff-easy { background: #e8f5e9; color: #4caf50; }
 .diff-medium { background: #fff3e0; color: #ff9800; }
 .diff-hard { background: #fce4ec; color: #e91e63; }
-.diff-problem { background: #e8f0fe; color: #667eea; }
+.diff-problem { background: #e8f0fe; color: #4F6EF7; }
 .diff-discuss { background: #fff3e0; color: #ff9800; }
 
 .problem-info {

@@ -122,7 +122,7 @@
                 <el-avatar v-if="msg.role === 'user'" :size="40">
                   {{ studentName.charAt(0) }}
                 </el-avatar>
-                <el-avatar v-else :size="40" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <el-avatar v-else :size="40" style="background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);">
                   <el-icon><ChatDotRound /></el-icon>
                 </el-avatar>
               </div>
@@ -227,9 +227,9 @@
           <span>会话操作</span>
         </div>
         <div class="panel-actions">
-          <el-button class="action-btn collect-btn" @click="collectSession">
-            <el-icon><Star /></el-icon>
-            <span>收藏会话</span>
+          <el-button class="action-btn collect-btn" :class="{ 'is-favorited': isFavorited }" @click="collectSession">
+            <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
+            <span>{{ isFavorited ? '已收藏' : '收藏会话' }}</span>
           </el-button>
           <el-button class="action-btn export-btn" @click="showExportDialog">
             <el-icon><Download /></el-icon>
@@ -261,7 +261,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Search, VideoPause, Close } from '@element-plus/icons-vue';
+import { Search, VideoPause, Close, StarFilled } from '@element-plus/icons-vue';
 
 // 图片预览
 const previewImage = (url) => {
@@ -405,6 +405,8 @@ const loadSession = async (sessionId) => {
   try {
     currentSessionId.value = sessionId
     messages.value = []
+    // 检查收藏状态
+    checkFavoriteStatus();
     // 调用 API 加载会话消息
     const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
     const convList = res?.data?.conversations || []
@@ -488,8 +490,40 @@ const sendMessage = async () => {
     }, abortController.signal)
 
     if (!response.ok) {
+      // 尝试解析 JSON 错误响应（如封禁 403）
+      const respContentType = response.headers.get('Content-Type') || ''
+      if (respContentType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          ElMessage.error(errMsg || '您的AI对话功能已被禁止使用。')
+          messages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          isLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const contentType = response.headers.get('Content-Type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        // 4031=用户被封禁，4032=消息违规被拦截
+        ElMessage.warning(errMsg || '您的消息被系统拦截，请规范用语。')
+        // 将拦截提示作为系统消息展示
+        messages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        isLoading.value = false
+        return
+      }
+      // 其他 JSON 错误
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     // 读取 SSE 流
@@ -629,14 +663,47 @@ const removePendingImage = (index) => {
   pendingImages.value.splice(index, 1);
 };
 
-// 收藏会话
-const collectSession = () => {
+// 收藏状态
+const isFavorited = ref(false);
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!currentSessionId.value) {
+    isFavorited.value = false;
+    return;
+  }
+  try {
+    const res = await studentAPI.checkFavorite(currentSessionId.value);
+    isFavorited.value = res?.data?.data?.is_favorited || false;
+  } catch (e) {
+    console.error('检查收藏状态失败:', e);
+  }
+};
+
+// 收藏/取消收藏会话
+const collectSession = async () => {
   if (messages.value.length === 0) {
     ElMessage.warning('当前会话为空，无法收藏');
     return;
   }
-  // TODO: 调用API收藏会话
-  ElMessage.success('会话已收藏');
+  if (!currentSessionId.value) {
+    ElMessage.warning('请先发送一条消息创建会话');
+    return;
+  }
+  try {
+    if (isFavorited.value) {
+      await studentAPI.unfavoriteSession(currentSessionId.value);
+      isFavorited.value = false;
+      ElMessage.success('已取消收藏');
+    } else {
+      await studentAPI.favoriteSession(currentSessionId.value);
+      isFavorited.value = true;
+      ElMessage.success('会话已收藏');
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e);
+    ElMessage.error('操作失败');
+  }
 };
 
 // 显示导出对话框
@@ -712,17 +779,19 @@ const goBack = () => {
   router.push({ name: 'StudentDashboard' });
 };
 
-// 加载历史会话列表
+// 加载历史会话列表（仅展示普通AI对话，排除编程题会话）
 const loadSessions = async () => {
   try {
     const res = await studentAPI.getAISessions(1, 50)
     const list = res?.data?.sessions || []
-    sessions.value = list.map(s => ({
-      id: s.session_id,
-      title: s.session_title || '未命名会话',
-      updateTime: s.last_interact_time || s.create_time,
-      problemId: s.problem_id || 0
-    })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+    sessions.value = list
+      .filter(s => !s.problem_id || s.problem_id === 0) // 排除编程题会话
+      .map(s => ({
+        id: s.session_id,
+        title: s.session_title || '未命名会话',
+        updateTime: s.last_interact_time || s.create_time,
+        problemId: s.problem_id || 0
+      })).sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
   } catch (error) {
     console.error('加载会话列表失败:', error)
   }
@@ -741,9 +810,15 @@ watch(() => route.query.question, (question) => {
 }, { immediate: true });
 
 // 页面加载
-onMounted(() => {
-  loadSessions();
+onMounted(async () => {
+  await loadSessions();
   loadModels();  // 加载模型列表
+
+  // 如果路由携带 sessionId 参数（从收藏页跳转），自动加载对应会话
+  const targetSessionId = route.query.sessionId;
+  if (targetSessionId) {
+    await loadSession(targetSessionId);
+  }
 });
 </script>
 
@@ -770,13 +845,13 @@ onMounted(() => {
     }
 
     :deep(.el-button--primary) {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
       border: none;
       transition: all 0.3s ease;
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
       }
     }
   }
@@ -808,13 +883,13 @@ onMounted(() => {
         height: 44px;
         font-size: 16px;
         font-weight: 600;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
         border: none;
         transition: all 0.3s ease;
 
         &:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+          box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
         }
 
         &:active {
@@ -853,8 +928,8 @@ onMounted(() => {
 
             &.active {
               background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
-              border-color: #667eea;
-              box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+              border-color: #4F6EF7;
+              box-shadow: 0 2px 8px rgba(79, 110, 247, 0.2);
             }
 
             .session-title {
@@ -926,9 +1001,9 @@ onMounted(() => {
 
           .model-desc-badge {
             font-size: 12px;
-            color: #667eea;
-            background: rgba(102, 126, 234, 0.08);
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            color: #4F6EF7;
+            background: rgba(79, 110, 247, 0.08);
+            border: 1px solid rgba(79, 110, 247, 0.2);
             border-radius: 20px;
             padding: 2px 10px;
             white-space: nowrap;
@@ -943,13 +1018,13 @@ onMounted(() => {
               transition: all 0.3s ease;
 
               &:hover {
-                box-shadow: 0 0 0 1px #667eea;
+                box-shadow: 0 0 0 1px #4F6EF7;
               }
             }
           }
 
           :deep(.el-switch) {
-            --el-switch-on-color: #667eea;
+            --el-switch-on-color: #4F6EF7;
           }
         }
       }
@@ -970,12 +1045,12 @@ onMounted(() => {
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
             align-items: center;
             justify-content: center;
             color: white;
             margin-bottom: 24px;
-            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 8px 24px rgba(79, 110, 247, 0.3);
             animation: float 3s ease-in-out infinite;
           }
 
@@ -983,7 +1058,7 @@ onMounted(() => {
             margin: 0 0 15px 0;
             font-size: 28px;
             font-weight: 600;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -1015,7 +1090,7 @@ onMounted(() => {
                 align-items: flex-end;
 
                 .message-text {
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
                   color: white;
                 }
               }
@@ -1035,10 +1110,10 @@ onMounted(() => {
               .think-block {
                 max-width: 80%;
                 margin-bottom: 8px;
-                border: 1px solid rgba(102, 126, 234, 0.25);
+                border: 1px solid rgba(79, 110, 247, 0.25);
                 border-radius: 10px;
                 overflow: hidden;
-                background: rgba(102, 126, 234, 0.04);
+                background: rgba(79, 110, 247, 0.04);
 
                 .think-header {
                   display: flex;
@@ -1047,13 +1122,13 @@ onMounted(() => {
                   padding: 8px 12px;
                   cursor: pointer;
                   user-select: none;
-                  background: rgba(102, 126, 234, 0.08);
+                  background: rgba(79, 110, 247, 0.08);
                   transition: background 0.2s;
 
-                  &:hover { background: rgba(102, 126, 234, 0.14); }
+                  &:hover { background: rgba(79, 110, 247, 0.14); }
 
                   .think-icon { font-size: 14px; }
-                  .think-title { font-size: 13px; font-weight: 600; color: #667eea; flex: 1; }
+                  .think-title { font-size: 13px; font-weight: 600; color: #4F6EF7; flex: 1; }
                   .think-toggle { font-size: 12px; color: #909399; }
                 }
 
@@ -1062,7 +1137,7 @@ onMounted(() => {
                   font-size: 13px;
                   line-height: 1.7;
                   color: #606266;
-                  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+                  border-top: 1px dashed rgba(79, 110, 247, 0.2);
                   white-space: pre-wrap;
                   word-wrap: break-word;
                 }
@@ -1159,8 +1234,8 @@ onMounted(() => {
             transition: all 0.3s ease;
 
             &:focus {
-              border-color: #667eea;
-              box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+              border-color: #4F6EF7;
+              box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
             }
           }
 
@@ -1176,7 +1251,7 @@ onMounted(() => {
               align-items: center;
               gap: 6px;
               background: #f0f4ff;
-              border: 1px solid rgba(102, 126, 234, 0.3);
+              border: 1px solid rgba(79, 110, 247, 0.3);
               border-radius: 8px;
               padding: 4px 8px 4px 4px;
 
@@ -1216,7 +1291,7 @@ onMounted(() => {
             margin-top: 12px;
 
             :deep(.el-button--primary) {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
               border: none;
               height: 40px;
               padding: 0 24px;
@@ -1225,7 +1300,7 @@ onMounted(() => {
 
               &:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
               }
 
               &:active {
@@ -1234,11 +1309,11 @@ onMounted(() => {
             }
 
             :deep(.el-button--text) {
-              color: #667eea;
+              color: #4F6EF7;
               transition: all 0.3s ease;
 
               &:hover {
-                background: rgba(102, 126, 234, 0.1);
+                background: rgba(79, 110, 247, 0.1);
               }
             }
           }
@@ -1271,7 +1346,7 @@ onMounted(() => {
         border-bottom: 2px solid #f0f0f0;
 
         .el-icon {
-          color: #667eea;
+          color: #4F6EF7;
         }
       }
 
@@ -1319,6 +1394,11 @@ onMounted(() => {
             &:hover {
               background: linear-gradient(135deg, #ffe7ba 0%, #ffd666 100%);
               box-shadow: 0 4px 12px rgba(255, 214, 102, 0.4);
+            }
+
+            &.is-favorited {
+              background: linear-gradient(135deg, #ffd666 0%, #ffa940 100%);
+              color: #873800;
             }
           }
 
@@ -1400,8 +1480,8 @@ onMounted(() => {
   }
 
   &.qwen {
-    background: rgba(102, 126, 234, 0.1);
-    color: #667eea;
+    background: rgba(79, 110, 247, 0.1);
+    color: #4F6EF7;
   }
 }
 
@@ -1442,7 +1522,7 @@ onMounted(() => {
 }
 
 .message-area::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(180deg, #4F6EF7 0%, #60A5FA 100%);
   border-radius: 3px;
 }
 
@@ -1456,7 +1536,7 @@ onMounted(() => {
 }
 
 .session-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(180deg, #4F6EF7 0%, #60A5FA 100%);
   border-radius: 3px;
 }
 

@@ -15,6 +15,9 @@ const UserManagement = () => import('../views/admin/UserManagement.vue');
 const ModelManagement = () => import('../views/admin/ModelManagement.vue');
 const TeacherAudit = () => import('../views/admin/TeacherAudit.vue');
 const AdminProfile = () => import('../views/admin/AdminProfile.vue');
+const IntentDictManagement = () => import('../views/admin/IntentDictManagement.vue');
+const IntentPromptManagement = () => import('../views/admin/IntentPromptManagement.vue');
+const IntentRecordManagement = () => import('../views/admin/IntentRecordManagement.vue');
 
 // 教师端页面组件
 const TeacherDashboard = () => import('../views/teacher/Dashboard.vue');
@@ -112,6 +115,24 @@ const routes = [
     component: AdminProfile,
     meta: { title: '个人信息中心', requiresAuth: true, role: 'admin' }
   },
+  {
+    path: '/admin/intent-dict',
+    name: 'IntentDictManagement',
+    component: IntentDictManagement,
+    meta: { title: '意图字典管理', requiresAuth: true, role: 'admin' }
+  },
+  {
+    path: '/admin/intent-prompt',
+    name: 'IntentPromptManagement',
+    component: IntentPromptManagement,
+    meta: { title: '提示词模板管理', requiresAuth: true, role: 'admin' }
+  },
+  {
+    path: '/admin/intent-records',
+    name: 'IntentRecordManagement',
+    component: IntentRecordManagement,
+    meta: { title: '意图记录与统计', requiresAuth: true, role: 'admin' }
+  },
   // 教师端路由
   {
     path: '/teacher',
@@ -164,6 +185,12 @@ const routes = [
     name: 'TeacherAIChat',
     component: TeacherAIChat,
     meta: { title: 'AI对话', requiresAuth: true, role: 'teacher' }
+  },
+  {
+    path: '/teacher/collection',
+    name: 'TeacherSessionCollection',
+    component: () => import('../views/teacher/TeacherSessionCollection.vue'),
+    meta: { title: '我的收藏', requiresAuth: true, role: 'teacher' }
   },
   {
     path: '/teacher/class-management',

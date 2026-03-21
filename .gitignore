@@ -5,3 +5,9 @@ yarn-error.log
 yarn-debug.log
 .pnp/
 .pnp.js
+
+# 环境变量和敏感信息
+setup-env.sh
+setup-env.*.sh
+.env
+.env.local

@@ -389,7 +389,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   padding: 20px;
 }
 
@@ -471,12 +471,12 @@ onMounted(() => {
     transition: all 0.3s;
 
     &:hover {
-      box-shadow: 0 2px 12px rgba(102, 126, 234, 0.2);
+      box-shadow: 0 2px 12px rgba(79, 110, 247, 0.2);
     }
   }
 
   :deep(.el-input__wrapper.is-focus) {
-    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 2px 12px rgba(79, 110, 247, 0.3);
   }
 
   .code-input-wrapper {
@@ -501,14 +501,14 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 500;
   border-radius: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border: none;
   transition: all 0.3s;
   margin-top: 10px;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 8px 20px rgba(79, 110, 247, 0.4);
   }
 
   &:active {
@@ -524,13 +524,13 @@ onMounted(() => {
 
   .back-link,
   .login-link {
-    color: #667eea;
+    color: #4F6EF7;
     font-size: 14px;
     cursor: pointer;
     transition: all 0.3s;
 
     &:hover {
-      color: #764ba2;
+      color: #60A5FA;
       text-decoration: underline;
     }
   }

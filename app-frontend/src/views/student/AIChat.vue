@@ -73,7 +73,7 @@
               v-if="currentSessionId === session.id" 
               name="success" 
               size="18" 
-              color="#667eea" 
+              color="#4F6EF7" 
             />
           </div>
           <van-empty 
@@ -99,7 +99,7 @@
           <van-cell-group inset class="settings-group">
             <van-cell title="AI模型" class="setting-cell">
               <template #icon>
-                <van-icon name="fire" color="#667eea" size="18" />
+                <van-icon name="fire" color="#4F6EF7" size="18" />
               </template>
               <template #right-icon>
                 <van-dropdown-menu>
@@ -111,7 +111,7 @@
             <van-cell v-if="currentModelDesc" class="model-desc-cell">
               <template #title>
                 <div class="model-desc-row">
-                  <van-icon name="info-o" size="14" color="#667eea" />
+                  <van-icon name="info-o" size="14" color="#4F6EF7" />
                   <span class="model-desc-text">{{ currentModelDesc }}</span>
                 </div>
               </template>
@@ -409,7 +409,7 @@ const pendingImages = ref([]) // [{dataUrl: 'data:image/...;base64,...', name: '
 // 操作菜单
 const showActionSheet = ref(false)
 const actions = [
-  { name: '收藏会话', icon: 'star-o' },
+  { name: isFavorited.value ? '取消收藏' : '收藏会话', icon: isFavorited.value ? 'star' : 'star-o' },
   { name: '导出会话', icon: 'down' },
   { name: '生成标题', icon: 'edit' }
 ]
@@ -475,6 +475,8 @@ const loadSession = async (sessionId) => {
     currentSessionId.value = sessionId
     showSidebar.value = false
     messages.value = []
+    // 检查收藏状态
+    checkFavoriteStatus()
     const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
     const convList = res?.data?.conversations || []
     convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
@@ -549,8 +551,36 @@ const sendMessage = async () => {
     }, abortController.signal)
 
     if (!response.ok) {
+      const respContentType = response.headers.get('Content-Type') || ''
+      if (respContentType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          showToast(errMsg || '您的AI对话功能已被禁止使用。')
+          messages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          isLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const contentType = response.headers.get('Content-Type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        showToast(errMsg || '您的消息被系统拦截，请规范用语。')
+        messages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        isLoading.value = false
+        return
+      }
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     const reader = response.body.getReader()
@@ -675,7 +705,7 @@ const removePendingImage = (index) => {
 const onActionSelect = (action) => {
   showActionSheet.value = false
   
-  if (action.name === '收藏会话') {
+  if (action.name === '收藏会话' || action.name === '取消收藏') {
     collectSession()
   } else if (action.name === '导出会话') {
     showExportDialog()
@@ -684,14 +714,46 @@ const onActionSelect = (action) => {
   }
 }
 
-// 收藏会话
-const collectSession = () => {
+const isFavorited = ref(false)
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!currentSessionId.value) {
+    isFavorited.value = false
+    return
+  }
+  try {
+    const res = await studentAPI.checkFavorite(currentSessionId.value)
+    isFavorited.value = res?.data?.data?.is_favorited || false
+  } catch (e) {
+    console.error('检查收藏状态失败:', e)
+  }
+}
+
+// 收藏/取消收藏会话
+const collectSession = async () => {
   if (messages.value.length === 0) {
     showToast('当前会话为空，无法收藏')
     return
   }
-  // TODO: 调用API收藏会话
-  showToast('会话已收藏')
+  if (!currentSessionId.value) {
+    showToast('请先发送一条消息创建会话')
+    return
+  }
+  try {
+    if (isFavorited.value) {
+      await studentAPI.unfavoriteSession(currentSessionId.value)
+      isFavorited.value = false
+      showToast('已取消收藏')
+    } else {
+      await studentAPI.favoriteSession(currentSessionId.value)
+      isFavorited.value = true
+      showToast('会话已收藏')
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e)
+    showToast('操作失败')
+  }
 }
 
 // 显示导出对话框
@@ -808,13 +870,13 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #f0f4ff 0%, #fafbff 100%);
+  background: linear-gradient(180deg, #f4f8fd 0%, #fafcff 100%);
   position: relative;
 }
 
 /* ==================== 顶部导航栏 ==================== */
 .custom-navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
 }
 
 :deep(.custom-navbar .van-nav-bar__title) {
@@ -867,7 +929,7 @@ onMounted(() => {
   font-size: 18px;
   font-weight: 600;
   color: #303133;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -888,18 +950,18 @@ onMounted(() => {
 
 .new-session-btn {
   margin: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   border: none;
   color: white;
   font-weight: 500;
   height: 44px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.24);
   transition: all 0.3s ease;
 }
 
 .new-session-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.3);
 }
 
 .new-session-btn span {
@@ -942,16 +1004,16 @@ onMounted(() => {
 }
 
 .session-item.active {
-  background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
-  border: 1px solid #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  background: linear-gradient(135deg, #edf4ff 0%, #f6faff 100%);
+  border: 1px solid #4F6EF7;
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.12);
 }
 
 .session-icon {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -960,7 +1022,7 @@ onMounted(() => {
 }
 
 .session-item.active .session-icon {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  background: linear-gradient(135deg, #7CB8FF 0%, #4F6EF7 100%);
 }
 
 .session-info {
@@ -1040,8 +1102,8 @@ onMounted(() => {
 }
 
 .model-desc-cell {
-  background: rgba(102, 126, 234, 0.04) !important;
-  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+  background: rgba(79, 110, 247, 0.04) !important;
+  border-top: 1px dashed rgba(79, 110, 247, 0.2);
 }
 
 .model-desc-row {
@@ -1052,7 +1114,7 @@ onMounted(() => {
 
 .model-desc-text {
   font-size: 12px;
-  color: #667eea;
+  color: #4F6EF7;
   line-height: 1.5;
 }
 
@@ -1082,13 +1144,13 @@ onMounted(() => {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 24px rgba(79, 110, 247, 0.24);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -1101,7 +1163,7 @@ onMounted(() => {
   margin: 0 0 8px;
   font-size: 22px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1140,17 +1202,17 @@ onMounted(() => {
 }
 
 .tip-item .van-icon {
-  color: #667eea;
+  color: #4F6EF7;
 }
 
 /* 深度思考区块 */
 .think-block {
   max-width: 75%;
   margin-bottom: 8px;
-  border: 1px solid rgba(102, 126, 234, 0.25);
+  border: 1px solid rgba(79, 110, 247, 0.25);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(102, 126, 234, 0.04);
+  background: rgba(79, 110, 247, 0.04);
 }
 
 .think-header {
@@ -1159,16 +1221,16 @@ onMounted(() => {
   gap: 6px;
   padding: 10px 14px;
   cursor: pointer;
-  background: rgba(102, 126, 234, 0.08);
+  background: rgba(79, 110, 247, 0.08);
   user-select: none;
 }
 
 .think-header:active {
-  background: rgba(102, 126, 234, 0.14);
+  background: rgba(79, 110, 247, 0.14);
 }
 
 .think-icon { font-size: 14px; }
-.think-title { font-size: 13px; font-weight: 600; color: #667eea; flex: 1; }
+.think-title { font-size: 13px; font-weight: 600; color: #4F6EF7; flex: 1; }
 .think-toggle { font-size: 12px; color: #909399; }
 
 .think-content {
@@ -1176,7 +1238,7 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.7;
   color: #606266;
-  border-top: 1px dashed rgba(102, 126, 234, 0.2);
+  border-top: 1px dashed rgba(79, 110, 247, 0.2);
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -1229,8 +1291,8 @@ onMounted(() => {
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.24);
 }
 
 .ai-avatar {
@@ -1241,7 +1303,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #667eea;
+  color: #4F6EF7;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -1283,7 +1345,7 @@ onMounted(() => {
 }
 
 .message-item.user .message-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   color: white;
   border-bottom-right-radius: 4px;
 }
@@ -1336,7 +1398,7 @@ onMounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #667eea;
+  background: #4F6EF7;
   animation: typing 1.4s infinite;
 }
 
@@ -1380,7 +1442,7 @@ onMounted(() => {
   height: 60px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(79, 110, 247, 0.3);
 }
 
 .pending-image-remove {
@@ -1446,8 +1508,8 @@ onMounted(() => {
 
 .message-input:focus-within {
   background: white;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #4F6EF7;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
 }
 
 :deep(.message-input .van-field__control) {
@@ -1504,14 +1566,14 @@ onMounted(() => {
 }
 
 .send-btn.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.24);
 }
 
 .send-btn.active:active {
   transform: scale(0.95);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.3);
 }
 
 .send-btn:disabled {
@@ -1526,8 +1588,8 @@ onMounted(() => {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
+  box-shadow: 0 6px 20px rgba(79, 110, 247, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1545,7 +1607,7 @@ onMounted(() => {
 
 .floating-menu:active {
   transform: scale(0.9);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 16px rgba(79, 110, 247, 0.4);
 }
 
 /* ==================== 操作菜单优化 ==================== */
@@ -1565,7 +1627,7 @@ onMounted(() => {
 }
 
 :deep(.van-dialog__confirm) {
-  color: #667eea;
+  color: #4F6EF7;
 }
 
 /* ==================== 响应式优化 ==================== */
@@ -1590,7 +1652,7 @@ onMounted(() => {
 }
 
 .message-area::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
+  background: rgba(79, 110, 247, 0.3);
   border-radius: 2px;
 }
 
@@ -1603,7 +1665,7 @@ onMounted(() => {
 }
 
 .session-list::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
+  background: rgba(79, 110, 247, 0.3);
   border-radius: 2px;
 }
 

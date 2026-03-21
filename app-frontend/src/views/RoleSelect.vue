@@ -68,7 +68,7 @@ const selectRole = (role) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   padding: 20px;
   overflow-y: auto;
 }

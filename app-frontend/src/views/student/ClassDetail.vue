@@ -183,7 +183,7 @@ onMounted(() => {
 }
 
 .value.code {
-  color: #667eea;
+  color: #4F6EF7;
   font-family: 'Courier New', monospace;
   font-size: 16px;
 }

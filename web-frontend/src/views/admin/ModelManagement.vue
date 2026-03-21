@@ -276,9 +276,9 @@ const getModelIcon = (modelName) => {
 
 // 获取成功率颜色
 const getSuccessRateColor = (rate) => {
-  if (rate >= 98) return '#67C23A';
-  if (rate >= 95) return '#E6A23C';
-  return '#F56C6C';
+  if (rate >= 98) return '#22C55E';
+  if (rate >= 95) return '#F59E0B';
+  return '#EF4444';
 };
 
 // 初始化趋势图表
@@ -315,21 +315,21 @@ const initTrendChart = () => {
         type: 'line',
         smooth: true,
         data: [120, 132, 101, 134, 190, 230, 210],
-        itemStyle: { color: '#409EFF' }
+        itemStyle: { color: '#4F6EF7' }
       },
       {
         name: 'Doubao',
         type: 'line',
         smooth: true,
         data: [90, 110, 95, 115, 150, 180, 165],
-        itemStyle: { color: '#67C23A' }
+        itemStyle: { color: '#60A5FA' }
       },
       {
         name: 'Qwen',
         type: 'line',
         smooth: true,
         data: [80, 95, 85, 100, 130, 155, 145],
-        itemStyle: { color: '#E6A23C' }
+        itemStyle: { color: '#94A3B8' }
       }
     ]
   };
@@ -379,9 +379,9 @@ const initTokenChart = () => {
           }
         },
         data: [
-          { value: 125600, name: 'DeepSeek', itemStyle: { color: '#409EFF' } },
-          { value: 98300, name: 'Doubao', itemStyle: { color: '#67C23A' } },
-          { value: 87500, name: 'Qwen', itemStyle: { color: '#E6A23C' } }
+          { value: 125600, name: 'DeepSeek', itemStyle: { color: '#4F6EF7' } },
+          { value: 98300, name: 'Doubao', itemStyle: { color: '#60A5FA' } },
+          { value: 87500, name: 'Qwen', itemStyle: { color: '#94A3B8' } }
         ]
       }
     ]
@@ -465,12 +465,14 @@ onMounted(() => {
   margin-bottom: 20px;
   text-align: center;
   transition: all 0.3s;
-  border: 2px solid #EBEEF5;
+  border: 1px solid #E5EAF3;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
 }
 
 .model-card.model-enabled {
-  border-color: #409EFF;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.05) 0%, rgba(64, 158, 255, 0.02) 100%);
+  border-color: rgba(79, 110, 247, 0.28);
+  background: linear-gradient(180deg, rgba(79, 110, 247, 0.06) 0%, rgba(255, 255, 255, 0.98) 100%);
 }
 
 .model-icon {
@@ -481,13 +483,13 @@ onMounted(() => {
 .model-name {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: #0F172A;
   margin-bottom: 8px;
 }
 
 .model-description {
   font-size: 13px;
-  color: #909399;
+  color: #94A3B8;
   margin-bottom: 16px;
   min-height: 40px;
 }
@@ -498,7 +500,7 @@ onMounted(() => {
 
 .model-info {
   padding-top: 12px;
-  border-top: 1px solid #EBEEF5;
+  border-top: 1px solid #EEF2F7;
 }
 
 .info-item {
@@ -509,11 +511,11 @@ onMounted(() => {
 }
 
 .info-item .label {
-  color: #909399;
+  color: #94A3B8;
 }
 
 .info-item .value {
-  color: #303133;
+  color: #0F172A;
   font-weight: 600;
 }
 
@@ -529,12 +531,12 @@ onMounted(() => {
 
 .detail-label {
   font-size: 14px;
-  color: #909399;
+  color: #94A3B8;
 }
 
 .detail-value {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #0F172A;
 }
 </style>

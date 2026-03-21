@@ -443,7 +443,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   padding: 20px;
   overflow-y: auto;
 }
@@ -537,9 +537,9 @@ onUnmounted(() => {
     background: #f8f8f8;
 
     &:focus {
-      border-color: #667eea;
+      border-color: #4F6EF7;
       background: white;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
     }
 
     &::placeholder {
@@ -557,9 +557,9 @@ onUnmounted(() => {
     width: 100px;
     height: 45px;
     font-size: 13px;
-    color: #667eea;
+    color: #4F6EF7;
     background: white;
-    border: 1px solid #667eea;
+    border: 1px solid #4F6EF7;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.3s;
@@ -597,7 +597,7 @@ onUnmounted(() => {
     &:active {
       transform: scale(0.95);
       background: #f8f8f8;
-      border-color: #667eea;
+      border-color: #4F6EF7;
     }
   }
 
@@ -619,7 +619,7 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 500;
   color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -646,7 +646,7 @@ onUnmounted(() => {
 
   .back-link,
   .login-link {
-    color: #667eea;
+    color: #4F6EF7;
     font-size: 13px;
     cursor: pointer;
     transition: all 0.3s;
@@ -778,7 +778,7 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 500;
   color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;

@@ -7,6 +7,7 @@ import App from './App.vue';
 import router from './router';
 import './styles/student.css'; // 引入学生端样式
 import './styles/teacher.css'; // 引入教师端样式
+import './styles/admin.css'; // 引入管理员端样式
 
 const app = createApp(App);
 

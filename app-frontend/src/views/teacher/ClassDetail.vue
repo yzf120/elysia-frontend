@@ -8,7 +8,7 @@
 
     <!-- 加载中 -->
     <div v-if="infoLoading" class="loading-wrap">
-      <van-loading type="spinner" color="#667eea" />
+      <van-loading type="spinner" color="#4F6EF7" />
     </div>
 
     <template v-else>
@@ -136,7 +136,7 @@
 
             <!-- 加载中 -->
             <div v-if="chapterLoading" class="empty-tip">
-              <van-loading type="spinner" color="#667eea" />
+              <van-loading type="spinner" color="#4F6EF7" />
             </div>
 
             <!-- 空状态 -->
@@ -308,7 +308,7 @@
               <van-tag :type="difficultyTagType(p.difficulty)" size="mini">{{ difficultyText(p.difficulty) }}</van-tag>
               <span class="problem-item-title">{{ p.title }}</span>
             </div>
-            <van-icon v-if="problemForm.problemId === p.problem_id" name="success" color="#667eea" />
+            <van-icon v-if="problemForm.problemId === p.problem_id" name="success" color="#4F6EF7" />
           </div>
           <div v-if="problemLibraryList.length === 0" class="empty-tip" style="padding: 16px 0">暂无题目，请尝试其他关键词</div>
         </div>
@@ -908,7 +908,7 @@ onMounted(() => {
 }
 
 .value.code {
-  color: #667eea;
+  color: #4F6EF7;
   font-family: 'Courier New', monospace;
   font-size: 16px;
 }
@@ -1009,7 +1009,7 @@ onMounted(() => {
 }
 
 .chapter-badge {
-  background: #667eea;
+  background: #4F6EF7;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -1121,7 +1121,7 @@ onMounted(() => {
 }
 
 .type-card:active {
-  border-color: #667eea;
+  border-color: #4F6EF7;
   background: #eef0ff;
 }
 
@@ -1183,8 +1183,8 @@ onMounted(() => {
 
 .source-tab.active {
   background: #eef0ff;
-  color: #667eea;
-  border-color: #667eea;
+  color: #4F6EF7;
+  border-color: #4F6EF7;
 }
 
 /* 题库列表 */

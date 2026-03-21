@@ -39,7 +39,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #F9FAFB;
+  background: #F7F9FC;
 }
 
 #app {
@@ -49,19 +49,19 @@ body {
 
 /* 清新明亮风格全局样式 */
 .gradient-bg {
-  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 50%, #E0F2FE 100%);
+  background: linear-gradient(180deg, #F6F9FD 0%, #FFFFFF 58%, #EEF4FF 100%);
 }
 
 .card {
   background: white;
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(79, 110, 247, 0.08);
 }
 
 .fresh-primary {
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   color: white;
 }
 

@@ -26,23 +26,23 @@
             <!-- 系统概览 Tab -->
             <el-tab-pane label="系统概览" name="overview">
               <!-- 统计卡片 -->
-              <div class="stats-grid">
-                <div class="stat-card" @click="viewModelStats">
+              <div class="stats-grid overview-stats-grid">
+                <div class="stat-card stat-card-accent" @click="viewModelStats">
                   <div class="stat-icon">📊</div>
-                  <div class="stat-value">{{ stats.modelCalls }}</div>
-                  <div class="stat-label">模型调用总数</div>
+                  <div class="stat-value">{{ usageData.summary?.total_requests?.toLocaleString() || 0 }}</div>
+                  <div class="stat-label">模型调用次数（近7天）</div>
                 </div>
-                <div class="stat-card success" @click="viewUsers">
+                <div class="stat-card success stat-card-accent" @click="viewUsers">
                   <div class="stat-icon">👥</div>
                   <div class="stat-value">{{ stats.totalUsers }}</div>
                   <div class="stat-label">用户总数</div>
                 </div>
-                <div class="stat-card warning" @click="viewKnowledge">
-                  <div class="stat-icon">📚</div>
-                  <div class="stat-value">{{ stats.knowledgeSize }} GB</div>
-                  <div class="stat-label">知识库容量</div>
+                <div class="stat-card warning stat-card-accent" @click="viewModelStats">
+                  <div class="stat-icon">🔤</div>
+                  <div class="stat-value">{{ formatTokenCount(usageData.summary?.total_tokens || 0) }}</div>
+                  <div class="stat-label">Token消耗（近7天）</div>
                 </div>
-                <div class="stat-card danger" @click="activeTab = 'audit'">
+                <div class="stat-card danger stat-card-accent" @click="activeTab = 'audit'">
                   <div class="stat-icon">⏰</div>
                   <div class="stat-value">{{ stats.pendingAudits }}</div>
                   <div class="stat-label">待审核申请</div>
@@ -51,7 +51,7 @@
 
               <!-- 模型调用统计图表 -->
               <div class="chart-container">
-                <div class="chart-title">模型调用趋势（近7天）</div>
+                <div class="chart-title">模型调用趋势（近7天） — 调用次数 & Token消耗</div>
                 <div ref="chartRef" style="width: 100%; height: 300px;"></div>
               </div>
 
@@ -163,11 +163,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminSidebar from '@/components/admin/AdminSidebar.vue';
 import * as echarts from 'echarts';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { adminAPI } from '@/services';
 
 const router = useRouter();
 const activeTab = ref('overview');
@@ -176,114 +177,76 @@ const loading = ref(false);
 const chartRef = ref(null);
 let chartInstance = null;
 
-// 统计数据
+// 统计数据（真实接口）
 const stats = ref({
-  modelCalls: 15234,
-  totalUsers: 1256,
+  modelCalls: 0,
+  totalUsers: 0,
   knowledgeSize: 45.6,
   knowledgePercentage: 45.6,
-  pendingAudits: 8
+  pendingAudits: 0
+});
+
+// 推理用量数据
+const usageData = ref({
+  data_points: [],
+  summary: { total_input_tokens: 0, total_output_tokens: 0, total_tokens: 0, total_requests: 0 }
 });
 
 // 待审核列表
-const pendingAudits = ref([
-  {
-    id: 1,
-    employeeNumber: 'T20240001',
-    name: '张教授',
-    email: 'zhang@university.edu.cn',
-    department: '计算机学院',
-    submitTime: '2026-02-07 10:30:00'
-  },
-  {
-    id: 2,
-    employeeNumber: 'T20240002',
-    name: '李老师',
-    email: 'li@university.edu.cn',
-    department: '数学学院',
-    submitTime: '2026-02-07 09:15:00'
-  },
-  {
-    id: 3,
-    employeeNumber: 'T20240003',
-    name: '王副教授',
-    email: 'wang@university.edu.cn',
-    department: '物理学院',
-    submitTime: '2026-02-06 16:45:00'
-  }
-]);
+const pendingAudits = ref([]);
 
 const currentPage = ref(1);
 const pageSize = ref(10);
-const totalAudits = ref(8);
+const totalAudits = ref(0);
+
+// 加载Dashboard统计数据
+const loadDashboardStats = async () => {
+  try {
+    const res = await adminAPI.getDashboardStats();
+    if (res && res.data) {
+      stats.value.totalUsers = res.data.total_users || 0;
+      stats.value.pendingAudits = res.data.pending_audits || 0;
+      totalAudits.value = res.data.pending_audits || 0;
+    }
+  } catch (error) {
+    console.error('加载Dashboard统计失败:', error);
+  }
+};
+
+// 加载推理用量数据
+const loadInferenceUsage = async () => {
+  try {
+    const now = new Date();
+    const endTime = now.toISOString().split('T')[0];
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 7);
+    const startTime = startDate.toISOString().split('T')[0];
+
+    const res = await adminAPI.getInferenceUsage({
+      interval: 'Day',
+      start_time: startTime,
+      end_time: endTime
+    });
+
+    if (res && res.data) {
+      usageData.value = res.data;
+      stats.value.modelCalls = res.data.summary?.total_requests || 0;
+      // 更新图表
+      updateChart();
+    }
+  } catch (error) {
+    console.error('加载推理用量失败:', error);
+    // 如果API失败，图表仍显示空数据
+    updateChart();
+  }
+};
 
 // 初始化图表
 const initChart = () => {
   if (!chartRef.value) return;
   
   chartInstance = echarts.init(chartRef.value);
-  
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: ['02-01', '02-02', '02-03', '02-04', '02-05', '02-06', '02-07'],
-      axisLine: {
-        lineStyle: {
-          color: '#DCDFE6'
-        }
-      },
-      axisLabel: {
-        color: '#606266'
-      }
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: {
-        lineStyle: {
-          color: '#DCDFE6'
-        }
-      },
-      axisLabel: {
-        color: '#606266'
-      },
-      splitLine: {
-        lineStyle: {
-          color: '#EBEEF5'
-        }
-      }
-    },
-    series: [
-      {
-        name: '调用次数',
-        type: 'line',
-        smooth: true,
-        data: [1850, 2100, 2350, 2200, 2450, 2300, 2584],
-        itemStyle: {
-          color: '#10B981'
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
-            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
-          ])
-        }
-      }
-    ]
-  };
-  
-  chartInstance.setOption(option);
+  updateChart();
   
   // 响应式
   window.addEventListener('resize', () => {
@@ -291,12 +254,98 @@ const initChart = () => {
   });
 };
 
+// 更新图表数据
+const updateChart = () => {
+  if (!chartInstance) return;
+
+  const dataPoints = usageData.value.data_points || [];
+
+  // 按日期排序
+  const sorted = [...dataPoints].sort((a, b) => a.date.localeCompare(b.date));
+
+  const dates = sorted.map(d => d.date ? d.date.substring(5) : ''); // 显示 MM-DD
+  const reqCounts = sorted.map(d => d.req_count || 0);
+  const totalTokens = sorted.map(d => d.total_tokens || 0);
+
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        let html = `<div style="font-weight:600">${params[0]?.axisValue || ''}</div>`;
+        params.forEach(p => {
+          html += `<div>${p.marker} ${p.seriesName}: <b>${p.value.toLocaleString()}</b></div>`;
+        });
+        return html;
+      }
+    },
+    legend: {
+      data: ['调用次数', 'Token消耗'],
+      bottom: 0
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '12%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: dates.length > 0 ? dates : ['暂无数据'],
+      axisLine: { lineStyle: { color: '#DCDFE6' } },
+      axisLabel: { color: '#606266' }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '调用次数',
+        axisLine: { lineStyle: { color: '#DCDFE6' } },
+        axisLabel: { color: '#606266' },
+        splitLine: { lineStyle: { color: '#EBEEF5' } }
+      },
+      {
+        type: 'value',
+        name: 'Token数',
+        axisLine: { lineStyle: { color: '#DCDFE6' } },
+        axisLabel: { color: '#606266' },
+        splitLine: { show: false }
+      }
+    ],
+    series: [
+      {
+        name: '调用次数',
+        type: 'bar',
+        yAxisIndex: 0,
+        data: reqCounts,
+        itemStyle: { color: '#4F6EF7', borderRadius: [4, 4, 0, 0] },
+        barWidth: '40%'
+      },
+      {
+        name: 'Token消耗',
+        type: 'line',
+        yAxisIndex: 1,
+        smooth: true,
+        data: totalTokens,
+        itemStyle: { color: '#67C23A' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(103, 194, 58, 0.26)' },
+            { offset: 1, color: 'rgba(103, 194, 58, 0.04)' }
+          ])
+        }
+      }
+    ]
+  };
+  
+  chartInstance.setOption(option, true);
+};
+
 // 加载待审核列表
 const loadPendingAudits = async () => {
   loading.value = true;
   try {
-    // TODO: 调用API获取待审核列表
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // TODO: 调用真实待审核列表API
+    await new Promise(resolve => setTimeout(resolve, 300));
   } catch (error) {
     ElMessage.error('加载失败：' + error);
   } finally {
@@ -334,14 +383,31 @@ const getProgressColor = (percentage) => {
   return '#F56C6C';
 };
 
-onMounted(() => {
+// 格式化Token数量（大数字友好显示）
+const formatTokenCount = (count) => {
+  if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
+  if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
+  return count.toString();
+};
+
+onMounted(async () => {
+  // 并行加载所有数据
+  await Promise.all([
+    loadDashboardStats(),
+    loadInferenceUsage(),
+    loadPendingAudits()
+  ]);
+
   nextTick(() => {
     initChart();
   });
-  loadPendingAudits();
 });
 </script>
 
 <style scoped>
 @import '@/styles/admin.css';
+
+.overview-stats-grid .stat-card-accent {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%);
+}
 </style>

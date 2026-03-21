@@ -2,100 +2,121 @@
   <div class="student-profile-page">
     <!-- 顶部导航栏 -->
     <van-nav-bar
-      title="个人信息"
+      title="个人中心"
       left-arrow
       @click-left="goBack"
       fixed
       placeholder
+      :border="false"
+      class="custom-navbar"
     />
 
-    <!-- 个人信息卡片 -->
-    <div class="profile-header">
-      <div class="avatar-section">
-        <van-image
-          round
-          width="80"
-          height="80"
-          :src="userInfo.avatar"
-        >
-          <template #default>
-            <div class="avatar-placeholder">{{ userInfo.name?.charAt(0) || 'S' }}</div>
-          </template>
-        </van-image>
-        <van-button size="small" plain round @click="uploadAvatar">更换头像</van-button>
-      </div>
-      <div class="user-basic-info">
-        <h2>{{ userInfo.name || '学生' }}</h2>
-        <p>学号：{{ userInfo.student_id || '-' }}</p>
+    <!-- 用户名片区 -->
+    <div class="profile-hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="avatar-wrap">
+          <div class="avatar-ring">
+            <div class="avatar-inner">
+              <span class="avatar-letter">{{ (userInfo.name || '学').charAt(0) }}</span>
+            </div>
+          </div>
+          <div class="online-badge"></div>
+        </div>
+        <h2 class="hero-name">{{ userInfo.name || '学生' }}</h2>
+        <p class="hero-id">学号：{{ userInfo.student_id || '-' }}</p>
       </div>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="stats-section">
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.courseCount }}</div>
-        <div class="stat-label">学习课程</div>
+    <!-- 学习统计卡片 -->
+    <div class="stats-row">
+      <div class="stat-chip chip-course">
+        <div class="chip-icon">
+          <van-icon name="bookmark-o" size="20" />
+        </div>
+        <span class="chip-value">{{ stats.completedCourses }}/{{ stats.totalCourses }}</span>
+        <span class="chip-label">课程</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.taskCount }}</div>
-        <div class="stat-label">完成任务</div>
+      <div class="stat-chip chip-chapter">
+        <div class="chip-icon">
+          <van-icon name="notes-o" size="20" />
+        </div>
+        <span class="chip-value">{{ stats.completedChapters }}/{{ stats.totalChapters }}</span>
+        <span class="chip-label">章节</span>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.studyHours }}</div>
-        <div class="stat-label">学习时长(h)</div>
+      <div class="stat-chip chip-ai">
+        <div class="chip-icon">
+          <van-icon name="chat-o" size="20" />
+        </div>
+        <span class="chip-value">{{ stats.aiSessions }}</span>
+        <span class="chip-label">AI对话</span>
       </div>
     </div>
 
-    <!-- 信息表单 -->
-    <van-form @submit="onSubmit">
-      <van-cell-group inset>
-        <van-field
-          v-model="formData.name"
-          name="name"
-          label="姓名"
-          placeholder="请输入姓名"
-          :rules="[{ required: true, message: '请输入姓名' }]"
-        />
-        <van-field
-          v-model="formData.student_id"
-          name="student_id"
-          label="学号"
-          placeholder="请输入学号"
-          disabled
-        />
-        <van-field
-          v-model="formData.email"
-          name="email"
-          label="邮箱"
-          placeholder="请输入邮箱"
-          type="email"
-          :rules="[{ required: true, message: '请输入邮箱' }]"
-        />
-        <van-field
-          v-model="formData.phone"
-          name="phone"
-          label="手机号"
-          placeholder="请输入手机号"
-          type="tel"
-          maxlength="11"
-          :rules="[{ required: true, message: '请输入手机号' }]"
-        />
-        <van-field
-          v-model="formData.class_name"
-          name="class_name"
-          label="班级"
-          placeholder="请输入班级"
-        />
-        <van-field
-          v-model="formData.major"
-          name="major"
-          label="专业"
-          placeholder="请输入专业"
-        />
-      </van-cell-group>
+    <!-- 基本信息卡片 -->
+    <div class="section-card">
+      <div class="section-header">
+        <div class="section-icon icon-profile">
+          <van-icon name="user-o" size="18" />
+        </div>
+        <span class="section-title">基本信息</span>
+      </div>
+      <van-form @submit="onSubmit">
+        <van-cell-group :border="false" class="form-group">
+          <van-field
+            v-model="formData.name"
+            name="name"
+            label="姓名"
+            placeholder="请输入姓名"
+            :rules="[{ required: true, message: '请输入姓名' }]"
+          />
+          <van-field
+            v-model="formData.student_id"
+            name="student_id"
+            label="学号"
+            placeholder="请输入学号"
+            disabled
+          />
+          <van-field
+            v-model="formData.email"
+            name="email"
+            label="邮箱"
+            placeholder="请输入邮箱"
+            type="email"
+            :rules="[{ required: true, message: '请输入邮箱' }]"
+          />
+          <van-field
+            v-model="formData.phone"
+            name="phone"
+            label="手机号"
+            placeholder="请输入手机号"
+            type="tel"
+            maxlength="11"
+          />
+          <van-field
+            v-model="formData.major"
+            name="major"
+            label="专业"
+            placeholder="请输入专业"
+          />
+        </van-cell-group>
+        <div class="btn-area">
+          <van-button round block type="primary" native-type="submit" :loading="submitting" class="save-btn">
+            保存修改
+          </van-button>
+        </div>
+      </van-form>
+    </div>
 
-      <!-- 修改密码 -->
-      <van-cell-group inset title="安全设置" style="margin-top: 16px;">
+    <!-- 安全设置卡片 -->
+    <div class="section-card">
+      <div class="section-header">
+        <div class="section-icon icon-security">
+          <van-icon name="shield-o" size="18" />
+        </div>
+        <span class="section-title">安全设置</span>
+      </div>
+      <van-cell-group :border="false" class="form-group">
         <van-field
           v-model="passwordData.oldPassword"
           type="password"
@@ -108,7 +129,7 @@
           type="password"
           name="newPassword"
           label="新密码"
-          placeholder="请输入新密码"
+          placeholder="请输入新密码（至少6位）"
         />
         <van-field
           v-model="passwordData.confirmPassword"
@@ -118,44 +139,30 @@
           placeholder="请再次输入新密码"
         />
       </van-cell-group>
-
-      <!-- 操作按钮 -->
-      <div class="action-buttons">
-        <van-button
-          round
-          block
-          type="primary"
-          native-type="submit"
-          :loading="submitting"
-        >
-          保存修改
-        </van-button>
-        <van-button
-          round
-          block
-          type="warning"
-          @click="changePassword"
-          :disabled="!canChangePassword"
-        >
+      <div class="btn-area">
+        <van-button round block type="warning" @click="changePassword" :disabled="!canChangePassword" class="pwd-btn">
           修改密码
         </van-button>
-        <van-button
-          round
-          block
-          type="danger"
-          @click="logout"
-        >
-          退出登录
-        </van-button>
       </div>
-    </van-form>
+    </div>
+
+    <!-- 退出登录 -->
+    <div class="logout-area">
+      <van-button round block plain type="danger" @click="logout" class="logout-btn">
+        <van-icon name="revoke" style="margin-right: 6px;" />
+        退出登录
+      </van-button>
+    </div>
+
+    <div class="page-bottom-space"></div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast, showConfirmDialog, showImagePreview } from 'vant'
+import { showToast, showConfirmDialog } from 'vant'
+import { studentAPI } from '@/api/index'
 
 const router = useRouter()
 
@@ -172,9 +179,11 @@ const userInfo = ref({
 
 // 统计数据
 const stats = ref({
-  courseCount: 0,
-  taskCount: 0,
-  studyHours: 0
+  completedCourses: 0,
+  totalCourses: 0,
+  completedChapters: 0,
+  totalChapters: 0,
+  aiSessions: 0
 })
 
 // 表单数据
@@ -207,30 +216,51 @@ const canChangePassword = computed(() => {
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
-    // 从localStorage获取用户信息
+    const res = await studentAPI.getProfile()
+    const student = res?.student
+    if (student) {
+      userInfo.value = {
+        name: student.student_name || '',
+        student_id: student.student_number || '',
+        email: student.email || '',
+        phone: student.phone_number || '',
+        class_name: '',
+        major: student.major || '',
+        avatar: ''
+      }
+      formData.value = { ...userInfo.value }
+    }
+  } catch (error) {
+    console.error('加载用户信息失败:', error)
+    // 接口失败时从本地存储获取基本信息
     const info = localStorage.getItem('userInfo')
     if (info && info !== 'undefined' && info !== 'null') {
       try {
         const parsedInfo = JSON.parse(info)
         userInfo.value = parsedInfo
         formData.value = { ...parsedInfo }
-      } catch (error) {
-        console.error('解析用户信息失败:', error)
+      } catch (e) {
+        console.error('解析用户信息失败:', e)
       }
     }
+  }
+}
 
-    // TODO: 调用API获取完整用户信息和统计数据
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // 模拟统计数据
-    stats.value = {
-      courseCount: 5,
-      taskCount: 23,
-      studyHours: 48
+// 加载学习统计
+const loadStudyStats = async () => {
+  try {
+    const res = await studentAPI.getStudyStats()
+    if (res) {
+      stats.value = {
+        completedCourses: res.completed_courses || 0,
+        totalCourses: res.total_courses || 0,
+        completedChapters: res.completed_chapters || 0,
+        totalChapters: res.total_chapters || 0,
+        aiSessions: res.ai_sessions || 0
+      }
     }
   } catch (error) {
-    console.error('加载用户信息失败:', error)
-    showToast('加载失败')
+    console.error('加载学习统计失败:', error)
   }
 }
 
@@ -245,8 +275,13 @@ const onSubmit = async (values) => {
   submitting.value = true
 
   try {
-    // TODO: 调用API更新用户信息
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await studentAPI.updateProfile({
+      name: formData.value.name,
+      email: formData.value.email,
+      major: formData.value.major,
+      grade: '',
+      interests: ''
+    })
 
     // 更新localStorage
     localStorage.setItem('userInfo', JSON.stringify(formData.value))
@@ -258,7 +293,7 @@ const onSubmit = async (values) => {
     })
   } catch (error) {
     console.error('保存失败:', error)
-    showToast('保存失败')
+    showToast(typeof error === 'string' ? error : '保存失败')
   } finally {
     submitting.value = false
   }
@@ -283,8 +318,8 @@ const changePassword = async () => {
       message: '确定要修改密码吗？'
     })
 
-    // TODO: 调用API修改密码
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 调用API修改密码
+    await studentAPI.updatePassword(passwordData.value.oldPassword, passwordData.value.newPassword)
 
     showToast({
       type: 'success',
@@ -345,103 +380,280 @@ const goBack = () => {
 // 页面加载
 onMounted(() => {
   loadUserInfo()
+  loadStudyStats()
 })
 </script>
 
 <style scoped>
 .student-profile-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
-  padding-bottom: 20px;
+  background: #f5f5f7;
+  padding-bottom: 40px;
 }
 
-/* 个人信息头部 */
-.profile-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* 导航栏 */
+.custom-navbar {
+  background: transparent !important;
+}
+
+:deep(.van-nav-bar) {
+  background: transparent !important;
+}
+
+:deep(.van-nav-bar__content) {
+  height: 48px;
+}
+
+:deep(.van-nav-bar__title) {
+  font-weight: 700;
+  font-size: 17px;
   color: white;
-  padding: 20px;
+}
+
+:deep(.van-nav-bar .van-icon) {
+  color: white !important;
+}
+
+/* 用户名片区 */
+.profile-hero {
+  position: relative;
+  padding: 20px 0 50px;
   text-align: center;
+  margin-bottom: -30px;
 }
 
-.avatar-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+.hero-bg {
+  position: absolute;
+  top: -48px;
+  left: 0;
+  right: 0;
+  height: 220px;
+  background: linear-gradient(145deg, #4F6EF7 0%, #7CB8FF 50%, #BBD7FF 100%);
+  border-radius: 0 0 32px 32px;
 }
 
-.avatar-placeholder {
-  width: 80px;
-  height: 80px;
+.hero-content {
+  position: relative;
+  z-index: 2;
+}
+
+.avatar-wrap {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 14px;
+}
+
+.avatar-ring {
+  width: 82px;
+  height: 82px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 3px;
+}
+
+.avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7CB8FF 0%, #4F6EF7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid white;
+}
+
+.avatar-letter {
   font-size: 32px;
-  font-weight: 600;
+  font-weight: 700;
   color: white;
 }
 
-.user-basic-info h2 {
-  margin: 0 0 8px 0;
+.online-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  background: #22c55e;
+  border: 2.5px solid white;
+  border-radius: 50%;
+}
+
+.hero-name {
+  color: white;
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
+  margin: 0 0 4px;
 }
 
-.user-basic-info p {
+.hero-id {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
   margin: 0;
-  font-size: 14px;
-  opacity: 0.9;
 }
 
-/* 统计卡片 */
-.stats-section {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 16px;
-  margin-top: -30px;
+/* 统计卡片行 */
+.stats-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px;
+  position: relative;
+  z-index: 3;
+  margin-bottom: 18px;
 }
 
-.stat-card {
+.stat-chip {
+  flex: 1;
   background: white;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 16px 12px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #409eff;
+.chip-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-course .chip-icon {
+  background: #eef2ff;
+  color: #4F6EF7;
+}
+
+.chip-chapter .chip-icon {
+  background: #fdf2f8;
+  color: #ec4899;
+}
+
+.chip-ai .chip-icon {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.chip-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1;
+}
+
+.chip-label {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* 分区卡片 */
+.section-card {
+  margin: 0 16px 16px;
+  background: white;
+  border-radius: 20px;
+  padding: 20px 0 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 14px;
+  border-bottom: 1px solid #f3f4f6;
   margin-bottom: 4px;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: #909399;
-}
-
-/* 操作按钮 */
-.action-buttons {
-  padding: 16px;
+.section-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  color: white;
 }
 
-/* 表单样式优化 */
-:deep(.van-cell-group__title) {
-  padding-left: 16px;
-  font-weight: 600;
-  color: #303133;
+.icon-profile {
+  background: linear-gradient(135deg, #4F6EF7, #7CB8FF);
+}
+
+.icon-security {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.form-group {
+  padding: 0;
+}
+
+:deep(.van-cell) {
+  padding: 14px 20px;
 }
 
 :deep(.van-field__label) {
-  width: 80px;
-  color: #606266;
+  width: 70px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+:deep(.van-field__control) {
+  color: #1f2937;
+}
+
+:deep(.van-field__control:disabled) {
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+}
+
+/* 按钮区 */
+.btn-area {
+  padding: 12px 20px 16px;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #4F6EF7, #7CB8FF) !important;
+  border: none !important;
+  font-weight: 600;
+  font-size: 15px;
+  height: 44px;
+  box-shadow: 0 4px 14px rgba(79, 110, 247, 0.3);
+}
+
+.pwd-btn {
+  font-weight: 600;
+  font-size: 15px;
+  height: 44px;
+}
+
+/* 退出登录 */
+.logout-area {
+  padding: 8px 16px;
+}
+
+.logout-btn {
+  height: 44px;
+  font-weight: 600;
+  font-size: 15px;
+  border-color: #fca5a5 !important;
+  color: #ef4444 !important;
+}
+
+.page-bottom-space {
+  height: 20px;
 }
 </style>

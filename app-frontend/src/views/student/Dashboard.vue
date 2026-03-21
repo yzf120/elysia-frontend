@@ -20,39 +20,50 @@
         <van-tabs v-model:active="activeTab" sticky offset-top="46px" @change="onTabChange">
           <!-- 待办事项Tab -->
           <van-tab title="待办事项" name="todo">
-            <div v-if="todoList.length === 0" class="empty-state">
-              <van-empty description="暂无待办事项" />
+            <!-- 全部完成的鼓励状态 -->
+            <div v-if="allCompleted" class="all-completed-state">
+              <div class="completed-icon">🎉</div>
+              <h3>太棒了！所有章节都已完成！</h3>
+              <p>你已经完成了所有课程的全部章节，继续保持这份学习热情吧！</p>
             </div>
-            <van-list
-              v-else
-              v-model:loading="todoLoading"
-              :finished="todoFinished"
-              finished-text="没有更多了"
-              @load="loadTodoList"
-            >
+            <!-- 没有课程时的空状态 -->
+            <div v-else-if="!hasCourses" class="empty-state">
+              <van-empty description="暂无课程，请先加入班级" />
+            </div>
+            <!-- 加载中 -->
+            <div v-else-if="todoLoading" class="empty-state">
+              <van-loading size="36" color="#4F6EF7" />
+              <p style="color: #909399; margin-top: 12px; font-size: 14px;">加载中...</p>
+            </div>
+            <!-- 未完成章节列表 -->
+            <div v-else-if="todoList.length > 0">
               <div
                 v-for="item in todoList"
-                :key="item.id"
+                :key="item.chapter_id"
                 class="todo-item"
-                @click="goToTask(item)"
+                @click="goToChapter(item)"
               >
                 <div class="todo-header">
-                  <van-tag :type="getTaskTypeColor(item.type)">{{ item.type }}</van-tag>
-                  <span class="todo-title">{{ item.title }}</span>
+                  <van-tag type="warning">待完成</van-tag>
+                  <span class="todo-title">{{ item.chapter_title }}</span>
                 </div>
                 <div class="todo-info">
                   <span class="subject">
                     <van-icon name="notes-o" />
-                    {{ item.subject }}
+                    {{ item.course_name }}（{{ item.class_name }}）
                   </span>
-                  <span class="deadline" :class="{ 'urgent': isUrgent(item.deadline) }">
-                    <van-icon name="clock-o" />
-                    {{ formatDate(item.deadline) }}
+                  <span>
+                    <van-icon name="todo-list-o" />
+                    进度：{{ item.completed_sections }} / {{ item.total_sections }} 题已通过
                   </span>
                 </div>
-                <van-button type="primary" size="small" round>去完成</van-button>
+                <van-button type="primary" size="small" round>去学习</van-button>
               </div>
-            </van-list>
+            </div>
+            <!-- 兜底空状态 -->
+            <div v-else class="empty-state">
+              <van-empty description="暂无待办事项" />
+            </div>
           </van-tab>
 
           <!-- 班级公告Tab -->
@@ -138,7 +149,7 @@
               @click="goToAIChat"
             >
               <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="grid-icon" style="background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);">
                   <van-icon name="chat-o" size="24" color="#fff" />
                 </div>
               </template>
@@ -149,7 +160,7 @@
               @click="goToCourse"
             >
               <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="grid-icon" style="background: linear-gradient(135deg, #5B8CFF 0%, #7CB8FF 100%);">
                   <van-icon name="notes-o" size="24" color="#fff" />
                 </div>
               </template>
@@ -160,7 +171,7 @@
               @click="goToWrongBook"
             >
               <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="grid-icon" style="background: linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%);">
                   <van-icon name="records-o" size="24" color="#fff" />
                 </div>
               </template>
@@ -171,7 +182,7 @@
               @click="goToCollection"
             >
               <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="grid-icon" style="background: linear-gradient(135deg, #34D399 0%, #2DD4BF 100%);">
                   <van-icon name="star-o" size="24" color="#fff" />
                 </div>
               </template>
@@ -182,7 +193,7 @@
               @click="openJoinClassDialog"
             >
               <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                <div class="grid-icon" style="background: linear-gradient(135deg, #93C5FD 0%, #60A5FA 100%);">
                   <van-icon name="add-o" size="24" color="#fff" />
                 </div>
               </template>
@@ -287,8 +298,8 @@ const activeTab = ref('todo')
 // 待办事项数据
 const todoList = ref([])
 const todoLoading = ref(false)
-const todoFinished = ref(false)
-const todoPage = ref(1)
+const allCompleted = ref(false)
+const hasCourses = ref(true)
 
 // 班级公告数据
 const classAnnouncements = ref([])
@@ -336,32 +347,11 @@ const formatDate = (dateStr) => {
   return `${date.getMonth() + 1}-${date.getDate()}`
 }
 
-// 判断是否紧急（距离截止时间小于24小时）
-const isUrgent = (deadline) => {
-  if (!deadline) return false
-  const now = new Date()
-  const deadlineDate = new Date(deadline)
-  const diff = deadlineDate - now
-  return diff > 0 && diff < 24 * 60 * 60 * 1000
-}
-
-// 获取任务类型颜色
-const getTaskTypeColor = (type) => {
-  const colorMap = {
-    '讨论': 'primary',
-    '作业': 'success',
-    '考试': 'danger'
-  }
-  return colorMap[type] || 'default'
-}
-
 // 下拉刷新
 const onRefresh = async () => {
   // 重置所有数据
-  todoPage.value = 1
   classPage.value = 1
   systemPage.value = 1
-  todoFinished.value = false
   classFinished.value = false
   systemFinished.value = false
   
@@ -381,7 +371,7 @@ const onRefresh = async () => {
 // Tab切换
 const onTabChange = (name) => {
   // 切换Tab时加载对应数据
-  if (name === 'todo' && todoList.value.length === 0) {
+  if (name === 'todo' && todoList.value.length === 0 && !allCompleted.value) {
     loadTodoList()
   } else if (name === 'class' && classAnnouncements.value.length === 0) {
     loadClassAnnouncements()
@@ -390,53 +380,15 @@ const onTabChange = (name) => {
   }
 }
 
-// 加载待办事项列表 - 支持分页
+// 加载待办事项列表 - 查询未完成章节
 const loadTodoList = async () => {
-  if (todoFinished.value) return
-  
   todoLoading.value = true
   
   try {
-    // TODO: 调用API获取待办事项
-    // 模拟数据和分页
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const mockData = [
-      {
-        id: 1,
-        type: '作业',
-        title: '第三章课后习题',
-        subject: '数据结构',
-        deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        type: '讨论',
-        title: '算法复杂度分析讨论',
-        subject: '算法设计',
-        deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        type: '考试',
-        title: '期中考试',
-        subject: '操作系统',
-        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ]
-    
-    if (todoPage.value === 1) {
-      todoList.value = mockData
-    } else {
-      todoList.value = [...todoList.value, ...mockData]
-    }
-    
-    // 模拟没有更多数据
-    if (todoPage.value >= 1) {
-      todoFinished.value = true
-    } else {
-      todoPage.value++
-    }
+    const res = await studentAPI.getPendingChapters()
+    todoList.value = res?.data?.pending_chapters || []
+    allCompleted.value = res?.data?.all_completed || false
+    hasCourses.value = res?.data?.has_courses !== false
   } catch (error) {
     console.error('加载待办事项失败:', error)
     showToast('加载失败')
@@ -541,12 +493,9 @@ const loadSystemAnnouncements = async () => {
   }
 }
 
-// 跳转到任务完成页面
-const goToTask = (task) => {
-  router.push({
-    path: '/student/task-complete',
-    query: { id: task.id, type: task.type }
-  })
+// 跳转到课程学习
+const goToChapter = (item) => {
+  router.push('/student/course-study')
 }
 
 // 跳转到个人信息中心
@@ -650,12 +599,12 @@ onMounted(() => {
 
 /* 欢迎语卡片 - 移动端适配 */
 .welcome-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   color: white;
   padding: 20px;
   border-radius: 12px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.24);
 }
 
 .welcome-card h2 {
@@ -668,6 +617,31 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   opacity: 0.9;
+}
+
+/* 全部完成鼓励状态 */
+.all-completed-state {
+  padding: 50px 20px;
+  text-align: center;
+}
+
+.all-completed-state .completed-icon {
+  font-size: 56px;
+  margin-bottom: 12px;
+}
+
+.all-completed-state h3 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #67c23a;
+}
+
+.all-completed-state p {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
+  line-height: 1.6;
 }
 
 /* 空状态 */
@@ -807,11 +781,11 @@ onMounted(() => {
 
 /* Tab样式优化 */
 :deep(.van-tabs__line) {
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #4F6EF7 0%, #7CB8FF 100%);
 }
 
 :deep(.van-tab--active) {
-  color: #667eea;
+  color: #4F6EF7;
   font-weight: 600;
 }
 

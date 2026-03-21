@@ -144,7 +144,7 @@
       axis="xy"
       icon="chat-o"
       @click="askAI"
-      :style="{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }"
+      :style="{ background: 'linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%)' }"
     />
   </div>
 </template>

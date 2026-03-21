@@ -330,7 +330,7 @@
       v-model="aiDrawerVisible"
       title=""
       direction="rtl"
-      :size="420"
+      :size="560"
       :with-header="false"
       class="ai-chat-drawer"
     >
@@ -342,22 +342,32 @@
             <span>AI 答疑助手</span>
           </div>
           <div class="ai-drawer-actions">
+            <el-button size="small" :type="aiIsFavorited ? 'warning' : 'default'" plain @click="toggleAIFavorite" :disabled="!aiCurrentSessionId">
+              <el-icon><StarFilled v-if="aiIsFavorited" /><Star v-else /></el-icon>
+              {{ aiIsFavorited ? '已收藏' : '收藏' }}
+            </el-button>
             <el-button size="small" type="primary" plain @click="newAISession">
               <el-icon><Plus /></el-icon>
               新会话
             </el-button>
             <el-button size="small" plain @click="clearAIChat">清空对话</el-button>
+            <el-button v-if="aiSessionList.length > 0" size="small" plain @click="aiSessionListVisible = !aiSessionListVisible">
+              <el-icon><Clock /></el-icon>
+              历史会话
+            </el-button>
             <el-button size="small" @click="aiDrawerVisible = false">
               <el-icon><Close /></el-icon>
             </el-button>
           </div>
         </div>
 
-        <!-- 该题目历史会话列表 -->
-        <div v-if="aiSessionList.length > 0" class="ai-session-list">
+        <!-- 该题目历史会话列表（点击按钮展开/收起） -->
+        <transition name="ai-session-slide">
+        <div v-if="aiSessionList.length > 0 && aiSessionListVisible" class="ai-session-list">
           <div class="ai-session-list-title">
             <el-icon><Clock /></el-icon>
             该题目历史会话
+            <span class="ai-session-list-close" @click="aiSessionListVisible = false">收起</span>
           </div>
           <div class="ai-session-list-scroll">
             <div
@@ -365,13 +375,14 @@
               :key="s.id"
               class="ai-session-item"
               :class="{ active: aiCurrentSessionId === s.id }"
-              @click="loadAISession(s.id)"
+              @click="loadAISession(s.id); aiSessionListVisible = false"
             >
               <div class="ai-session-item-title">{{ s.title }}</div>
               <div class="ai-session-item-time">{{ formatAISessionTime(s.updateTime) }}</div>
             </div>
           </div>
         </div>
+        </transition>
 
         <!-- 题目上下文提示 -->
         <div v-if="problem.title" class="ai-context-tip">
@@ -538,7 +549,7 @@ import { ElMessage } from 'element-plus'
 import {
   ArrowLeft, Timer, Coin, InfoFilled,
   RefreshLeft, VideoPlay, Upload, Close, ArrowUp, ArrowDown, Loading, VideoPause, Paperclip,
-  Clock, Plus, Setting
+  Clock, Plus, Setting, Star, StarFilled
 } from '@element-plus/icons-vue'
 import { studentAPI } from '@/services/index.js'
 
@@ -1120,6 +1131,31 @@ const syncScroll = () => {
   updateScrollbar()
 }
 
+// 确保光标所在行在可视区域内（自动滚动）
+const ensureCursorVisible = () => {
+  const ta = textareaEl.value
+  if (!ta) return
+  const pos = ta.selectionEnd
+  // 计算光标所在行号
+  const textBefore = code.value.slice(0, pos)
+  const lineIndex = textBefore.split('\n').length - 1
+  const lineHeightPx = 14 * 1.6  // font-size 14px * line-height 1.6
+  const paddingTop = 16
+  const cursorTop = paddingTop + lineIndex * lineHeightPx
+  const cursorBottom = cursorTop + lineHeightPx
+  const visibleTop = ta.scrollTop
+  const visibleBottom = ta.scrollTop + ta.clientHeight
+
+  if (cursorBottom > visibleBottom) {
+    // 光标在可视区域下方，向下滚动
+    ta.scrollTop = cursorBottom - ta.clientHeight
+  } else if (cursorTop < visibleTop) {
+    // 光标在可视区域上方，向上滚动
+    ta.scrollTop = cursorTop - paddingTop
+  }
+  syncScroll()
+}
+
 // 鼠标滚轮只滚动编辑器容器，不移动光标
 const onEditorWheel = (e) => {
   if (!textareaEl.value) return
@@ -1271,30 +1307,28 @@ const onKeydown = (e) => {
 
     if (isOpenBracket && isMatchingClose) {
       // 情况：光标在 { } 之间，回车后光标在中间行，关闭括号另起一行
-      // 例：func main(){|} → 回车后：
-      //   func main(){
-      //       |          ← 光标在这里（多一级缩进）
-      //   }
       const innerIndent = indent + '    '
       const inserted = '\n' + innerIndent + '\n' + indent
       code.value = val.slice(0, start) + inserted + val.slice(end)
       nextTick(() => {
         const newPos = start + 1 + innerIndent.length
         ta.selectionStart = ta.selectionEnd = newPos
+        nextTick(() => ensureCursorVisible())
       })
     } else if (isOpenBracket) {
       // 情况：行尾是开括号，但后面没有对应的关闭括号
-      // 例：if a > b {  → 回车后缩进一级
       const innerIndent = indent + '    '
       code.value = val.slice(0, start) + '\n' + innerIndent + val.slice(end)
       nextTick(() => {
         ta.selectionStart = ta.selectionEnd = start + 1 + innerIndent.length
+        nextTick(() => ensureCursorVisible())
       })
     } else {
       // 普通回车：继承当前行缩进
       code.value = val.slice(0, start) + '\n' + indent + val.slice(end)
       nextTick(() => {
         ta.selectionStart = ta.selectionEnd = start + 1 + indent.length
+        nextTick(() => ensureCursorVisible())
       })
     }
     return
@@ -1326,8 +1360,18 @@ const onKeydown = (e) => {
     if (pairs[before] === after) {
       e.preventDefault()
       code.value = val.slice(0, start - 1) + val.slice(start + 1)
-      nextTick(() => { ta.selectionStart = ta.selectionEnd = start - 1 })
+      nextTick(() => {
+        ta.selectionStart = ta.selectionEnd = start - 1
+        nextTick(() => ensureCursorVisible())
+      })
     }
+  }
+
+  // ===== 上/下/Home/End/PageUp/PageDown：导航键滚动跟随光标 =====
+  const navKeys = ['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']
+  if (navKeys.includes(e.key)) {
+    // 导航键由浏览器原生处理光标移动，之后确保滚动跟随
+    nextTick(() => ensureCursorVisible())
   }
 }
 
@@ -1548,6 +1592,7 @@ const goBack = () => {
 
 // ===== AI 答疑 =====
 const aiDrawerVisible = ref(false)
+const aiSessionListVisible = ref(false)
 const aiMessages = ref([])  // { role: 'user'|'assistant', content: string, type?: 'text'|'image', time: string }
 const aiInputText = ref('')
 const aiLoading = ref(false)
@@ -1558,6 +1603,43 @@ const aiPendingImages = ref([])  // 待发送的图片（base64 data url）
 // AI 会话管理
 const aiCurrentSessionId = ref('')  // 当前会话ID
 const aiSessionList = ref([])       // 该题目的历史会话列表
+const aiIsFavorited = ref(false)     // 当前会话是否已收藏
+
+// 检查AI答疑会话收藏状态
+const checkAIFavoriteStatus = async () => {
+  if (!aiCurrentSessionId.value) {
+    aiIsFavorited.value = false
+    return
+  }
+  try {
+    const res = await studentAPI.checkFavorite(aiCurrentSessionId.value)
+    aiIsFavorited.value = res?.data?.data?.is_favorited || false
+  } catch (e) {
+    console.error('检查收藏状态失败:', e)
+  }
+}
+
+// 收藏/取消收藏AI答疑会话
+const toggleAIFavorite = async () => {
+  if (!aiCurrentSessionId.value) {
+    ElMessage.warning('请先发送一条消息创建会话')
+    return
+  }
+  try {
+    if (aiIsFavorited.value) {
+      await studentAPI.unfavoriteSession(aiCurrentSessionId.value)
+      aiIsFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await studentAPI.favoriteSession(aiCurrentSessionId.value)
+      aiIsFavorited.value = true
+      ElMessage.success('会话已收藏')
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e)
+    ElMessage.error('操作失败')
+  }
+}
 
 // 加载该题目的历史会话列表
 const loadAISessionList = async () => {
@@ -1585,6 +1667,8 @@ const loadAISession = async (sessionId) => {
   try {
     aiCurrentSessionId.value = sessionId
     aiMessages.value = []
+    // 检查收藏状态
+    checkAIFavoriteStatus()
     const res = await studentAPI.getAISessionMessages(sessionId, 1, 200)
     const convList = res?.data?.conversations || []
     convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
@@ -1834,8 +1918,36 @@ const sendAIMessage = async () => {
     }, aiAbortController.signal)
 
     if (!response.ok) {
+      const errRespType = response.headers.get('Content-Type') || ''
+      if (errRespType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          ElMessage.error(errMsg || '您的AI对话功能已被禁止使用。')
+          aiMessages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          aiLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const aiContentType = response.headers.get('Content-Type') || ''
+    if (aiContentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        ElMessage.warning(errMsg || '您的消息被系统拦截，请规范用语。')
+        aiMessages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        aiLoading.value = false
+        return
+      }
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     // 读取 SSE 流
@@ -2018,6 +2130,18 @@ onMounted(async () => {
     syncScroll()
     updateScrollbar()
   })
+
+  // 如果路由携带 sessionId 参数（从收藏页跳转），自动打开AI答疑面板并加载对应会话
+  const targetSessionId = route.query.sessionId
+  if (targetSessionId) {
+    aiDrawerVisible.value = true
+    await loadAIModels()
+    await loadAISessionList()
+    await loadAISession(targetSessionId)
+    nextTick(() => {
+      scrollAIToBottom()
+    })
+  }
 })
 </script>
 
@@ -2847,18 +2971,18 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   color: white;
   border-radius: 28px;
   padding: 10px 16px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 4px 16px rgba(79, 110, 247, 0.5);
   transition: all 0.3s ease;
   user-select: none;
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.6);
+    box-shadow: 0 8px 24px rgba(79, 110, 247, 0.6);
   }
 
   .ai-fab-icon { font-size: 22px; line-height: 1; }
@@ -2882,10 +3006,10 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   color: white;
   flex-shrink: 0;
-  box-shadow: 0 2px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 12px rgba(79, 110, 247, 0.3);
 
   .ai-drawer-title {
     display: flex;
@@ -2919,7 +3043,7 @@ onMounted(async () => {
   font-size: 12px;
   color: #5a6ea0;
   flex-shrink: 0;
-  .el-icon { color: #667eea; flex-shrink: 0; }
+  .el-icon { color: #4F6EF7; flex-shrink: 0; }
   strong { color: #3a4a8a; }
 }
 
@@ -2936,10 +3060,20 @@ onMounted(async () => {
     padding: 7px 14px 5px;
     font-size: 11px;
     font-weight: 600;
-    color: #667eea;
+    color: #4F6EF7;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     .el-icon { font-size: 12px; }
+    .ai-session-list-close {
+      margin-left: auto;
+      font-size: 11px;
+      color: #909399;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+      &:hover { color: #4F6EF7; }
+    }
   }
 
   .ai-session-list-scroll {
@@ -2965,12 +3099,12 @@ onMounted(async () => {
 
     &:hover {
       background: #e8eeff;
-      border-color: rgba(102, 126, 234, 0.2);
+      border-color: rgba(79, 110, 247, 0.2);
     }
 
     &.active {
       background: linear-gradient(135deg, #e8eeff, #f0f4ff);
-      border-color: #667eea;
+      border-color: #4F6EF7;
     }
 
     .ai-session-item-title {
@@ -2993,7 +3127,7 @@ onMounted(async () => {
 }
 
 .ai-model-selector {
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: linear-gradient(to bottom, #f0f2ff, #f8f9ff);
   border-bottom: 1px solid #dde0f5;
   flex-shrink: 0;
@@ -3013,7 +3147,7 @@ onMounted(async () => {
     white-space: nowrap;
     flex-shrink: 0;
     font-weight: 500;
-    .el-icon { color: #667eea; }
+    .el-icon { color: #4F6EF7; }
   }
 
   .qwen-auto-tip {
@@ -3030,7 +3164,7 @@ onMounted(async () => {
       border: 1px solid #d0d8f0;
       box-shadow: none;
       transition: all 0.2s;
-      &:hover { border-color: #667eea; }
+      &:hover { border-color: #4F6EF7; }
     }
     :deep(.el-input__inner) {
       font-size: 13px;
@@ -3045,11 +3179,11 @@ onMounted(async () => {
     gap: 5px;
     margin-top: 7px;
     padding: 5px 10px;
-    background: rgba(102, 126, 234, 0.07);
+    background: rgba(79, 110, 247, 0.07);
     border-radius: 6px;
-    border: 1px solid rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(79, 110, 247, 0.15);
     font-size: 11px;
-    color: #667eea;
+    color: #4F6EF7;
     line-height: 1.5;
     .el-icon { flex-shrink: 0; font-size: 12px; }
   }
@@ -3096,8 +3230,8 @@ onMounted(async () => {
       color: #e05a2b;
     }
     &.qwen {
-      background: rgba(102, 126, 234, 0.1);
-      color: #667eea;
+      background: rgba(79, 110, 247, 0.1);
+      color: #4F6EF7;
     }
   }
 
@@ -3111,10 +3245,10 @@ onMounted(async () => {
 .ai-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   &::-webkit-scrollbar { width: 5px; }
   &::-webkit-scrollbar-thumb { background: #c0c8e8; border-radius: 3px; }
 }
@@ -3136,7 +3270,7 @@ onMounted(async () => {
   &.user {
     flex-direction: row-reverse;
     .ai-msg-bubble {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
       color: white;
       border-radius: 16px 4px 16px 16px;
       .ai-msg-time { color: rgba(255,255,255,0.7); }
@@ -3161,16 +3295,16 @@ onMounted(async () => {
     justify-content: center;
   }
 
-  .ai-msg-bubble {
-    max-width: 85%;
-    padding: 10px 14px;
+.ai-msg-bubble {
+    max-width: 80%;
+    padding: 12px 16px;
 
     .ai-think-block {
       margin-bottom: 8px;
-      border: 1px solid rgba(102, 126, 234, 0.25);
+      border: 1px solid rgba(79, 110, 247, 0.25);
       border-radius: 8px;
       overflow: hidden;
-      background: rgba(102, 126, 234, 0.04);
+      background: rgba(79, 110, 247, 0.04);
 
       .ai-think-header {
         display: flex;
@@ -3178,11 +3312,11 @@ onMounted(async () => {
         gap: 6px;
         padding: 7px 12px;
         cursor: pointer;
-        background: rgba(102, 126, 234, 0.08);
+        background: rgba(79, 110, 247, 0.08);
         user-select: none;
-        &:hover { background: rgba(102, 126, 234, 0.14); }
+        &:hover { background: rgba(79, 110, 247, 0.14); }
         .ai-think-icon { font-size: 13px; }
-        .ai-think-title { font-size: 12px; font-weight: 600; color: #667eea; flex: 1; }
+        .ai-think-title { font-size: 12px; font-weight: 600; color: #4F6EF7; flex: 1; }
         .ai-think-toggle { font-size: 11px; color: #909399; }
       }
 
@@ -3191,7 +3325,7 @@ onMounted(async () => {
         font-size: 12px;
         line-height: 1.7;
         color: #606266;
-        border-top: 1px dashed rgba(102, 126, 234, 0.2);
+        border-top: 1px dashed rgba(79, 110, 247, 0.2);
         white-space: pre-wrap;
         word-wrap: break-word;
       }
@@ -3213,8 +3347,8 @@ onMounted(async () => {
         line-height: 1.5;
       }
       :deep(.ai-inline-code) {
-        background: rgba(102, 126, 234, 0.12);
-        color: #667eea;
+        background: rgba(79, 110, 247, 0.12);
+        color: #4F6EF7;
         padding: 1px 5px;
         border-radius: 4px;
         font-family: 'Courier New', monospace;
@@ -3243,7 +3377,7 @@ onMounted(async () => {
       span {
         width: 8px;
         height: 8px;
-        background: #667eea;
+        background: #4F6EF7;
         border-radius: 50%;
         animation: ai-bounce 1.4s infinite ease-in-out both;
         &:nth-child(1) { animation-delay: -0.32s; }
@@ -3277,7 +3411,7 @@ onMounted(async () => {
       height: 60px;
       object-fit: cover;
       border-radius: 6px;
-      border: 2px solid #667eea;
+      border: 2px solid #4F6EF7;
     }
     .ai-pending-img-remove {
       position: absolute;
@@ -3312,7 +3446,7 @@ onMounted(async () => {
     background: #f8f9ff;
     box-sizing: border-box;
     transition: border-color 0.2s;
-    &:focus { border-color: #667eea; background: white; }
+    &:focus { border-color: #4F6EF7; background: white; }
     &::placeholder { color: #b0bcd0; font-size: 13px; }
   }
 }
@@ -3329,7 +3463,7 @@ onMounted(async () => {
   }
   .ai-input-hint { font-size: 11px; color: #a0aec0; }
   :deep(.el-button--primary) {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
     border: none;
     padding: 6px 18px;
   }
@@ -3340,5 +3474,24 @@ onMounted(async () => {
   height: auto !important;
   padding: 8px 12px !important;
   line-height: 1 !important;
+}
+
+/* 历史会话展开/收起过渡动画 */
+.ai-session-slide-enter-active,
+.ai-session-slide-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.ai-session-slide-enter-from,
+.ai-session-slide-leave-to {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.ai-session-slide-enter-to,
+.ai-session-slide-leave-from {
+  max-height: 200px;
+  opacity: 1;
 }
 </style>

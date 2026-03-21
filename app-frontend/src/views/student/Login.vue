@@ -279,7 +279,7 @@ const startCountdown = () => {
 }
 
 .link-text span {
-  color: #667eea;
+  color: #4F6EF7;
   cursor: pointer;
 }
 </style>

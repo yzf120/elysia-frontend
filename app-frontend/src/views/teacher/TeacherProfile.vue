@@ -20,7 +20,7 @@
       <!-- 关联班级 -->
       <van-tab title="关联班级" name="classes">
         <div class="tab-content">
-          <van-loading v-if="classLoading" type="spinner" color="#667eea" class="loading-center" />
+          <van-loading v-if="classLoading" type="spinner" color="#4F6EF7" class="loading-center" />
           <van-empty v-else-if="classList.length === 0" description="暂无关联班级" />
           <van-cell-group v-else inset>
             <van-cell

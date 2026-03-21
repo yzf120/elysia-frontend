@@ -175,11 +175,19 @@
         </div>
 
         <div class="teacher-access-card" @click="goToAIChat">
-          <div class="card-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #7CB8FF 0%, #3B82F6 100%);">
             <el-icon :size="28"><ChatDotRound /></el-icon>
           </div>
           <div class="card-title">AI对话</div>
           <div class="card-desc">智能助教对话交流</div>
+        </div>
+
+        <div class="teacher-access-card" @click="goToCollection">
+          <div class="card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+            <el-icon :size="28"><Star /></el-icon>
+          </div>
+          <div class="card-title">收藏会话</div>
+          <div class="card-desc">查看收藏的AI对话</div>
         </div>
       </div>
     </div>
@@ -351,6 +359,10 @@ const goToClassManagement = () => {
 
 const goToAIChat = () => {
   router.push({ name: 'TeacherAIChat' });
+};
+
+const goToCollection = () => {
+  router.push({ name: 'TeacherSessionCollection' });
 };
 
 onMounted(() => {

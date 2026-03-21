@@ -216,7 +216,7 @@ const startCountdown = () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 50%, #E0F2FE 100%);
+  background: linear-gradient(180deg, #F5F7FB 0%, #FFFFFF 55%, #EEF3FF 100%);
 }
 
 .login-container {
@@ -225,7 +225,7 @@ const startCountdown = () => {
 }
 
 .nav-bar {
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  background: #0F172A;
   :deep(.van-nav-bar__title) {
     color: white;
     font-weight: 600;
@@ -237,11 +237,11 @@ const startCountdown = () => {
 
 .login-card {
   margin: 20px;
-  background: linear-gradient(135deg, #FFFFFF 0%, rgba(240, 253, 244, 0.5) 100%);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%);
   border-radius: 24px;
   padding: 32px 24px;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.1);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  border: 1px solid #EAF0F8;
 }
 
 .card-header {
@@ -252,16 +252,13 @@ const startCountdown = () => {
 .icon {
   font-size: 72px;
   margin-bottom: 16px;
-  filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.3));
+  filter: drop-shadow(0 4px 12px rgba(79, 110, 247, 0.22));
 }
 
 .card-header h2 {
   font-size: 26px;
   font-weight: 700;
-  background: linear-gradient(135deg, #10B981, #06B6D4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #0F172A;
 }
 
 .form-footer {
@@ -269,9 +266,9 @@ const startCountdown = () => {
 }
 
 .form-footer :deep(.van-button--primary) {
-  background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   border: none;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 8px 16px rgba(79, 110, 247, 0.26);
   font-weight: 600;
   height: 48px;
 }
@@ -281,12 +278,12 @@ const startCountdown = () => {
 }
 
 :deep(.van-tab--active) {
-  color: #10B981;
+  color: #4F6EF7;
   font-weight: 600;
 }
 
 :deep(.van-tabs__line) {
-  background: linear-gradient(135deg, #10B981, #06B6D4);
+  background: linear-gradient(135deg, #4F6EF7, #60A5FA);
   height: 3px;
   border-radius: 3px;
 }
@@ -295,11 +292,11 @@ const startCountdown = () => {
   margin: 16px 0;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
 }
 
 :deep(.van-field__button .van-button--primary) {
-  background: linear-gradient(135deg, #10B981, #06B6D4);
+  background: linear-gradient(135deg, #4F6EF7, #60A5FA);
   border: none;
   font-weight: 600;
 }

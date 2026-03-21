@@ -175,6 +175,10 @@
           <span>会话操作</span>
         </div>
         <div class="panel-actions">
+          <el-button class="action-btn" :class="{ 'is-favorited': isFavorited }" @click="collectSession">
+            <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
+            <span>{{ isFavorited ? '已收藏' : '收藏会话' }}</span>
+          </el-button>
           <el-button class="action-btn" @click="exportSession">
             <el-icon><Download /></el-icon>
             <span>导出会话</span>
@@ -193,7 +197,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { VideoPause, Paperclip, Close } from '@element-plus/icons-vue';
+import { VideoPause, Paperclip, Close, Star, StarFilled } from '@element-plus/icons-vue';
 import { teacherAPI } from '@/services/index.js';
 
 const router = useRouter();
@@ -293,6 +297,8 @@ const loadSession = async (sessionId) => {
   try {
     currentSessionId.value = sessionId
     messages.value = []
+    // 检查收藏状态
+    checkFavoriteStatus();
     const res = await teacherAPI.getAISessionMessages(sessionId, 1, 200)
     const convList = res?.data?.conversations || []
     convList.sort((a, b) => (a.message_seq || 0) - (b.message_seq || 0))
@@ -365,8 +371,36 @@ const sendMessage = async () => {
     }, abortController.signal)
 
     if (!response.ok) {
+      const respContentType = response.headers.get('Content-Type') || ''
+      if (respContentType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          ElMessage.error(errMsg || '您的AI对话功能已被禁止使用。')
+          messages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          isLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const contentType = response.headers.get('Content-Type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        ElMessage.warning(errMsg || '您的消息被系统拦截，请规范用语。')
+        messages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        isLoading.value = false
+        return
+      }
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     // 读取 SSE 流
@@ -462,6 +496,49 @@ const scrollToBottom = () => {
 
 const goBack = () => {
   router.push({ name: 'TeacherDashboard' });
+};
+
+// 收藏状态
+const isFavorited = ref(false);
+
+// 检查收藏状态
+const checkFavoriteStatus = async () => {
+  if (!currentSessionId.value) {
+    isFavorited.value = false;
+    return;
+  }
+  try {
+    const res = await teacherAPI.checkFavorite(currentSessionId.value);
+    isFavorited.value = res?.data?.data?.is_favorited || false;
+  } catch (e) {
+    console.error('检查收藏状态失败:', e);
+  }
+};
+
+// 收藏/取消收藏会话
+const collectSession = async () => {
+  if (messages.value.length === 0) {
+    ElMessage.warning('当前会话为空，无法收藏');
+    return;
+  }
+  if (!currentSessionId.value) {
+    ElMessage.warning('请先发送一条消息创建会话');
+    return;
+  }
+  try {
+    if (isFavorited.value) {
+      await teacherAPI.unfavoriteSession(currentSessionId.value);
+      isFavorited.value = false;
+      ElMessage.success('已取消收藏');
+    } else {
+      await teacherAPI.favoriteSession(currentSessionId.value);
+      isFavorited.value = true;
+      ElMessage.success('会话已收藏');
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e);
+    ElMessage.error('操作失败');
+  }
 };
 
 onMounted(async () => {
@@ -788,6 +865,12 @@ onMounted(async () => {
           align-items: center;
           justify-content: center;
           gap: 8px;
+
+          &.is-favorited {
+            background: linear-gradient(135deg, #ffd666 0%, #ffa940 100%);
+            color: #873800;
+            border: none;
+          }
         }
       }
     }

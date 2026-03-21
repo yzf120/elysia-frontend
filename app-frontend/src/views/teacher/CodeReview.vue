@@ -10,7 +10,7 @@
       <!-- 待审核 -->
       <van-tab title="待审核" name="pending">
         <div class="tab-content">
-          <van-loading v-if="pendingLoading" type="spinner" color="#667eea" class="loading-center" />
+          <van-loading v-if="pendingLoading" type="spinner" color="#4F6EF7" class="loading-center" />
           <van-empty v-else-if="pendingList.length === 0" description="暂无待审核作业" />
           <div v-else class="review-list">
             <div
@@ -39,7 +39,7 @@
       <!-- 已审核 -->
       <van-tab title="已审核" name="reviewed">
         <div class="tab-content">
-          <van-loading v-if="reviewedLoading" type="spinner" color="#667eea" class="loading-center" />
+          <van-loading v-if="reviewedLoading" type="spinner" color="#4F6EF7" class="loading-center" />
           <van-empty v-else-if="reviewedList.length === 0" description="暂无已审核记录" />
           <div v-else class="review-list">
             <div
@@ -358,7 +358,7 @@ onMounted(() => {
 }
 
 .score-label { font-size: 14px; color: #666; }
-.score-value { font-size: 28px; font-weight: 700; color: #667eea; margin-left: 8px; }
+.score-value { font-size: 28px; font-weight: 700; color: #4F6EF7; margin-left: 8px; }
 
 .sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
 .error-item { font-size: 13px; color: #ff4d4f; margin-bottom: 4px; }

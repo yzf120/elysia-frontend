@@ -22,6 +22,7 @@
         <van-grid-item icon="plus" text="创建班级" @click="goTo('teacher-create-class')" />
         <van-grid-item icon="notes-o" text="班级管理" @click="goTo('teacher-class-management')" />
         <van-grid-item icon="chat-o" text="AI对话" @click="goTo('teacher-ai-chat')" />
+        <van-grid-item icon="star-o" text="收藏会话" @click="goTo('teacher-session-collection')" />
       </van-grid>
     </div>
 
@@ -31,7 +32,7 @@
         <!-- 我的班级 -->
         <van-tab title="我的班级" name="classes">
           <div v-if="classLoading" class="loading-wrap">
-            <van-loading type="spinner" color="#667eea" />
+            <van-loading type="spinner" color="#4F6EF7" />
           </div>
           <van-empty v-else-if="classList.length === 0" description="暂无班级，点击创建班级开始吧" />
           <div v-else class="class-list">
@@ -187,7 +188,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   margin: 12px 16px;
   border-radius: 14px;
   padding: 18px 20px;
@@ -283,7 +284,7 @@ onMounted(() => {
 }
 
 .class-code strong {
-  color: #667eea;
+  color: #4F6EF7;
   font-family: 'Courier New', monospace;
   font-size: 15px;
 }

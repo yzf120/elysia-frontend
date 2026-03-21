@@ -183,7 +183,7 @@
 
           <!-- IDE 工具栏 -->
           <div class="ide-toolbar">
-            <van-dropdown-menu active-color="#667eea" class="lang-dropdown">
+            <van-dropdown-menu active-color="#4F6EF7" class="lang-dropdown">
               <van-dropdown-item
                 v-model="selectedLang"
                 :options="langOptions"
@@ -353,7 +353,7 @@
         <div class="ai-model-selector">
           <div class="ai-model-selector-top">
             <span class="ai-model-label">🤖 模型</span>
-            <van-dropdown-menu class="ai-model-dropdown" active-color="#667eea">
+            <van-dropdown-menu class="ai-model-dropdown" active-color="#4F6EF7">
               <van-dropdown-item
                 v-model="aiSelectedModel"
                 :options="aiModels.map(m => ({ text: m.model_name, value: m.model_id }))"
@@ -369,7 +369,7 @@
           <!-- 深度思考开关 -->
           <div class="ai-deep-think-row" v-if="!isQwenModel">
             <span class="ai-model-label">🧠 深度思考</span>
-            <van-switch v-model="aiDeepThink" size="22" active-color="#667eea" />
+            <van-switch v-model="aiDeepThink" size="22" active-color="#4F6EF7" />
           </div>
           <div class="ai-deep-think-row" v-else>
             <span class="ai-model-label">🧠 深度思考</span>
@@ -973,6 +973,31 @@ const syncScroll = () => {
 
 const onEditorScroll = () => syncScroll()
 
+// 确保光标所在行在可视区域内（自动滚动）
+const ensureCursorVisible = () => {
+  const ta = textareaEl.value
+  if (!ta) return
+  const pos = ta.selectionEnd
+  // 计算光标所在行号
+  const textBefore = code.value.slice(0, pos)
+  const lineIndex = textBefore.split('\n').length - 1
+  const lineHeightPx = 13 * 1.6  // font-size 13px * line-height 1.6
+  const paddingTop = 12
+  const cursorTop = paddingTop + lineIndex * lineHeightPx
+  const cursorBottom = cursorTop + lineHeightPx
+  const visibleTop = ta.scrollTop
+  const visibleBottom = ta.scrollTop + ta.clientHeight
+
+  if (cursorBottom > visibleBottom) {
+    // 光标在可视区域下方，向下滚动
+    ta.scrollTop = cursorBottom - ta.clientHeight
+  } else if (cursorTop < visibleTop) {
+    // 光标在可视区域上方，向上滚动
+    ta.scrollTop = cursorTop - paddingTop
+  }
+  syncScroll()
+}
+
 // 鼠标滚轮只滚动编辑器容器，不移动光标
 const onEditorWheel = (e) => {
   if (!textareaEl.value) return
@@ -1123,16 +1148,23 @@ const onKeydown = (e) => {
       nextTick(() => {
         const newPos = start + 1 + innerIndent.length
         ta.selectionStart = ta.selectionEnd = newPos
+        nextTick(() => ensureCursorVisible())
       })
     } else if (isOpenBracket) {
       // 行尾是开括号：回车后多缩进一级
       const innerIndent = indent + '    '
       code.value = val.slice(0, start) + '\n' + innerIndent + val.slice(end)
-      nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 1 + innerIndent.length })
+      nextTick(() => {
+        ta.selectionStart = ta.selectionEnd = start + 1 + innerIndent.length
+        nextTick(() => ensureCursorVisible())
+      })
     } else {
       // 普通回车：继承当前行缩进
       code.value = val.slice(0, start) + '\n' + indent + val.slice(end)
-      nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 1 + indent.length })
+      nextTick(() => {
+        ta.selectionStart = ta.selectionEnd = start + 1 + indent.length
+        nextTick(() => ensureCursorVisible())
+      })
     }
     return
   }
@@ -1163,8 +1195,17 @@ const onKeydown = (e) => {
     if (pairs[before] === after) {
       e.preventDefault()
       code.value = val.slice(0, start - 1) + val.slice(start + 1)
-      nextTick(() => { ta.selectionStart = ta.selectionEnd = start - 1 })
+      nextTick(() => {
+        ta.selectionStart = ta.selectionEnd = start - 1
+        nextTick(() => ensureCursorVisible())
+      })
     }
+  }
+
+  // ===== 上/下/Home/End/PageUp/PageDown：导航键滚动跟随光标 =====
+  const navKeys = ['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']
+  if (navKeys.includes(e.key)) {
+    nextTick(() => ensureCursorVisible())
   }
 }
 
@@ -1587,8 +1628,34 @@ const sendAIMessage = async () => {
     }, aiAbortController.signal)
 
     if (!response.ok) {
+      const errRespType = response.headers.get('Content-Type') || ''
+      if (errRespType.includes('application/json')) {
+        const errResp = await response.json()
+        const errCode = errResp?.error?.code
+        const errMsg = errResp?.error?.message
+        if (errCode === 4031) {
+          aiMessages.value[assistantMsgIdx].content = errMsg || '您的AI对话功能已被禁止使用。'
+          aiLoading.value = false
+          return
+        }
+        throw new Error(errMsg || `HTTP ${response.status}`)
+      }
       const errText = await response.text()
       throw new Error(errText || `HTTP ${response.status}`)
+    }
+
+    // 检查是否为内容审核拦截的 JSON 响应（非SSE流）
+    const aiContentType = response.headers.get('Content-Type') || ''
+    if (aiContentType.includes('application/json')) {
+      const jsonResp = await response.json()
+      const errCode = jsonResp?.error?.code
+      const errMsg = jsonResp?.error?.message
+      if (errCode === 4031 || errCode === 4032) {
+        aiMessages.value[assistantMsgIdx].content = errMsg || '您的消息被系统拦截，请规范用语。'
+        aiLoading.value = false
+        return
+      }
+      throw new Error(errMsg || 'AI对话请求失败')
     }
 
     const reader = response.body.getReader()
@@ -2372,12 +2439,12 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   color: white;
   border-radius: 24px;
   padding: 8px 14px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 4px 16px rgba(79, 110, 247, 0.5);
   user-select: none;
   .ai-fab-icon { font-size: 20px; line-height: 1; }
   .ai-fab-text { font-size: 11px; font-weight: 600; }
@@ -2396,7 +2463,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
   color: white;
   flex-shrink: 0;
   .ai-popup-title {
@@ -2476,11 +2543,11 @@ onMounted(async () => {
     gap: 5px;
     margin-top: 7px;
     padding: 5px 10px;
-    background: rgba(102, 126, 234, 0.07);
+    background: rgba(79, 110, 247, 0.07);
     border-radius: 6px;
-    border: 1px solid rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(79, 110, 247, 0.15);
     font-size: 11px;
-    color: #667eea;
+    color: #4F6EF7;
     line-height: 1.5;
   }
 
@@ -2524,7 +2591,7 @@ onMounted(async () => {
   &.user {
     flex-direction: row-reverse;
     .ai-msg-bubble {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
       color: white;
       border-radius: 14px 4px 14px 14px;
       .ai-msg-time { color: rgba(255,255,255,0.7); }
@@ -2555,10 +2622,10 @@ onMounted(async () => {
 
     .ai-think-block {
       margin-bottom: 7px;
-      border: 1px solid rgba(102, 126, 234, 0.25);
+      border: 1px solid rgba(79, 110, 247, 0.25);
       border-radius: 8px;
       overflow: hidden;
-      background: rgba(102, 126, 234, 0.04);
+      background: rgba(79, 110, 247, 0.04);
 
       .ai-think-header {
         display: flex;
@@ -2566,11 +2633,11 @@ onMounted(async () => {
         gap: 5px;
         padding: 7px 10px;
         cursor: pointer;
-        background: rgba(102, 126, 234, 0.08);
+        background: rgba(79, 110, 247, 0.08);
         user-select: none;
-        &:active { background: rgba(102, 126, 234, 0.14); }
+        &:active { background: rgba(79, 110, 247, 0.14); }
         .ai-think-icon { font-size: 12px; }
-        .ai-think-title { font-size: 12px; font-weight: 600; color: #667eea; flex: 1; }
+        .ai-think-title { font-size: 12px; font-weight: 600; color: #4F6EF7; flex: 1; }
         .ai-think-toggle { font-size: 11px; color: #909399; }
       }
 
@@ -2579,7 +2646,7 @@ onMounted(async () => {
         font-size: 12px;
         line-height: 1.7;
         color: #606266;
-        border-top: 1px dashed rgba(102, 126, 234, 0.2);
+        border-top: 1px dashed rgba(79, 110, 247, 0.2);
         white-space: pre-wrap;
         word-wrap: break-word;
       }
@@ -2604,8 +2671,8 @@ onMounted(async () => {
     }
 
     .ai-inline-code {
-      background: rgba(102, 126, 234, 0.12);
-      color: #667eea;
+      background: rgba(79, 110, 247, 0.12);
+      color: #4F6EF7;
       padding: 1px 4px;
       border-radius: 3px;
       font-family: 'Courier New', monospace;
@@ -2633,7 +2700,7 @@ onMounted(async () => {
       span {
         width: 7px;
         height: 7px;
-        background: #667eea;
+        background: #4F6EF7;
         border-radius: 50%;
         animation: ai-bounce 1.4s infinite ease-in-out both;
         &:nth-child(1) { animation-delay: -0.32s; }
@@ -2667,7 +2734,7 @@ onMounted(async () => {
       height: 50px;
       object-fit: cover;
       border-radius: 5px;
-      border: 2px solid #667eea;
+      border: 2px solid #4F6EF7;
     }
     .ai-pending-img-remove {
       position: absolute;
@@ -2701,7 +2768,7 @@ onMounted(async () => {
     color: #303133;
     background: #f8f9ff;
     box-sizing: border-box;
-    &:focus { border-color: #667eea; background: white; }
+    &:focus { border-color: #4F6EF7; background: white; }
     &::placeholder { color: #b0bcd0; font-size: 12px; }
   }
 }

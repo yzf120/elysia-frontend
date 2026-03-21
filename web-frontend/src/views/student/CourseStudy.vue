@@ -146,7 +146,7 @@
           >
             <template #title>
               <div class="chapter-title-row">
-                <el-icon :color="isChapterDone(chapter) ? '#67c23a' : '#667eea'"><Notebook /></el-icon>
+                <el-icon :color="isChapterDone(chapter) ? '#67c23a' : '#4F6EF7'"><Notebook /></el-icon>
                 <span class="chapter-title-text" :style="isChapterDone(chapter) ? 'color:#52c41a' : ''">{{ chapter.title }}</span>
                 <el-icon v-if="isChapterDone(chapter)" color="#67c23a" :size="22" style="margin-left:6px"><CircleCheck /></el-icon>
               </div>
@@ -369,12 +369,12 @@ const classList = ref([])
 
 // 预设卡片颜色（按班级索引循环使用）
 const cardColors = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)'
+  'linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%)',
+  'linear-gradient(135deg, #5B8CFF 0%, #93C5FD 100%)',
+  'linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%)',
+  'linear-gradient(135deg, #34D399 0%, #2DD4BF 100%)',
+  'linear-gradient(135deg, #93C5FD 0%, #60A5FA 100%)',
+  'linear-gradient(135deg, #A5D8FF 0%, #7CB8FF 100%)'
 ]
 
 // 加载学生班级列表
@@ -412,6 +412,20 @@ const loadStudentClasses = async () => {
       color: cardColors[idx % cardColors.length],
       _raw: cls
     }))
+
+    // 查询各班级完成度
+    try {
+      const progressRes = await studentAPI.getClassProgress()
+      const progressList = progressRes?.data?.class_progress || []
+      for (const cp of progressList) {
+        const cls = classList.value.find(c => c.id === cp.class_id)
+        if (cls) {
+          cls.progress = cp.progress_percent || 0
+        }
+      }
+    } catch (e) {
+      console.warn('加载班级完成度失败:', e)
+    }
   } catch (e) {
     classListError.value = '班级加载失败：' + (e?.message || e)
     ElMessage.error('班级加载失败')

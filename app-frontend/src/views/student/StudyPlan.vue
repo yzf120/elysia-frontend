@@ -436,12 +436,12 @@ onMounted(() => {
 
 /* 方案概览 */
 .plan-overview {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
   color: white;
   padding: 20px;
   border-radius: 12px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.24);
 }
 
 .plan-overview h2 {

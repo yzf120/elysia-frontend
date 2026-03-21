@@ -19,7 +19,7 @@
 
       <!-- 加载中 -->
       <div v-if="loading" class="loading-wrap">
-        <van-loading type="spinner" color="#667eea" />
+        <van-loading type="spinner" color="#4F6EF7" />
       </div>
 
       <!-- 空状态 -->
@@ -368,7 +368,7 @@ onMounted(() => {
 }
 
 .class-code strong {
-  color: #667eea;
+  color: #4F6EF7;
   font-family: 'Courier New', monospace;
   font-size: 15px;
 }

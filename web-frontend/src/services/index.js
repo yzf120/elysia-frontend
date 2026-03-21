@@ -132,6 +132,47 @@ export const adminAPI = {
   approveTeacher: (approvalId, data) =>
     api.post(`/admin/teacher/approvals/${approvalId}/approve`, data),
 
+  // ==================== 意图管理接口 ====================
+  // 意图字典
+  listIntentDicts: (params = {}) =>
+    api.get('/admin/intent/dict', { params }),
+  createIntentDict: (data) =>
+    api.post('/admin/intent/dict', data),
+  getIntentDict: (id) =>
+    api.get(`/admin/intent/dict/${id}`),
+  updateIntentDict: (id, data) =>
+    api.put(`/admin/intent/dict/${id}`, data),
+  deleteIntentDict: (id) =>
+    api.delete(`/admin/intent/dict/${id}`),
+  updateIntentDictStatus: (id, data) =>
+    api.post(`/admin/intent/dict/${id}/status`, data),
+
+  // 意图提示词模板
+  listIntentPromptTemplates: (params = {}) =>
+    api.get('/admin/intent/prompt', { params }),
+  createIntentPromptTemplate: (data) =>
+    api.post('/admin/intent/prompt', data),
+  getIntentPromptTemplate: (id) =>
+    api.get(`/admin/intent/prompt/${id}`),
+  updateIntentPromptTemplate: (id, data) =>
+    api.put(`/admin/intent/prompt/${id}`, data),
+  deleteIntentPromptTemplate: (id) =>
+    api.delete(`/admin/intent/prompt/${id}`),
+  updateIntentPromptTemplateStatus: (id, data) =>
+    api.post(`/admin/intent/prompt/${id}/status`, data),
+
+  // 意图记录与统计
+  listIntentRecords: (params = {}) =>
+    api.get('/admin/intent/records', { params }),
+  getIntentStats: () =>
+    api.get('/admin/intent/stats'),
+
+  // Dashboard监控接口
+  getDashboardStats: () =>
+    api.get('/admin/dashboard/stats'),
+  getInferenceUsage: (params = {}) =>
+    api.get('/admin/dashboard/usage', { params }),
+
   // 用户侧查询能力（管理员也可查看）
   getSystemAnnouncements: fetchSystemAnnouncements,
   getPlatformBookshelf: fetchPlatformBookshelf
@@ -250,10 +291,24 @@ export const teacherAPI = {
 
   // 查询某会话的消息列表
   getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
-    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
-};
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } }),
 
-// ==================== 学生接口 ====================
+  // 收藏会话
+  favoriteSession: (sessionId) =>
+    api.post('/ai/favorite', { session_id: sessionId }),
+
+  // 取消收藏会话
+  unfavoriteSession: (sessionId) =>
+    api.post('/ai/unfavorite', { session_id: sessionId }),
+
+  // 查询收藏列表
+  listFavorites: (page = 1, pageSize = 20) =>
+    api.get('/ai/favorites', { params: { page, page_size: pageSize } }),
+
+  // 检查会话是否已收藏
+  checkFavorite: (sessionId) =>
+    api.get('/ai/favorite/check', { params: { session_id: sessionId } })
+};
 export const studentAPI = {
   // 发送注册验证码
   sendRegisterCode: (phoneNumber) =>
@@ -282,6 +337,19 @@ export const studentAPI = {
 
   // 登出
   logout: () => api.post('/student/auth/logout'),
+
+  // 学生个人信息接口
+  getProfile: () => api.get('/student/profile'),
+  updateProfile: (data) => api.post('/student/profile', data),
+  updatePassword: (oldPassword, newPassword) =>
+    api.post('/student/profile/password', { old_password: oldPassword, new_password: newPassword }),
+  getStudyStats: () => api.get('/student/profile/study-stats'),
+
+  // 待办事项（未完成章节）
+  getPendingChapters: () => api.get('/student/pending-chapters'),
+
+  // 获取各班级完成度
+  getClassProgress: () => api.get('/student/class-progress'),
 
   // 查询学生已加入的班级列表
   getStudentClasses: (studentId, page = 1, pageSize = 50) =>
@@ -352,10 +420,24 @@ export const studentAPI = {
 
   // 查询某会话的消息列表
   getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
-    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } })
-};
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } }),
 
-// ==================== 题库接口 ====================
+  // 收藏会话
+  favoriteSession: (sessionId) =>
+    api.post('/ai/favorite', { session_id: sessionId }),
+
+  // 取消收藏会话
+  unfavoriteSession: (sessionId) =>
+    api.post('/ai/unfavorite', { session_id: sessionId }),
+
+  // 查询收藏列表
+  listFavorites: (page = 1, pageSize = 20) =>
+    api.get('/ai/favorites', { params: { page, page_size: pageSize } }),
+
+  // 检查会话是否已收藏
+  checkFavorite: (sessionId) =>
+    api.get('/ai/favorite/check', { params: { session_id: sessionId } })
+};
 export const problemAPI = {
   listProblems: (keyword = '', difficulty = '', page = 1, pageSize = 20) =>
     api.get('/problem/list', { params: { keyword, difficulty, page, page_size: pageSize } }),

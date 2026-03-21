@@ -23,46 +23,56 @@
     <div class="main-content">
       <el-tabs v-model="activeTab" class="content-tabs">
         <el-tab-pane label="待办事项" name="todo">
-          <div v-if="todoList.length === 0" class="empty-state">
-            <el-empty description="暂无待办事项">
+          <!-- 全部完成的鼓励状态 -->
+          <div v-if="allCompleted" class="all-completed-state">
+            <div class="completed-icon">🎉</div>
+            <h3>太棒了！所有章节都已完成！</h3>
+            <p>你已经完成了所有课程的全部章节，继续保持这份学习热情吧！</p>
+          </div>
+          <!-- 没有课程时的空状态 -->
+          <div v-else-if="!hasCourses" class="empty-state">
+            <el-empty description="暂无课程，请先加入班级">
               <el-icon :size="80" color="#d3d3d3"><DocumentChecked /></el-icon>
             </el-empty>
           </div>
-          <div v-else class="todo-list">
+          <!-- 加载中 -->
+          <div v-else-if="todoLoading" class="empty-state">
+            <el-icon class="is-loading" :size="40" color="#409eff"><Loading /></el-icon>
+            <p style="color: #909399; margin-top: 12px;">加载中...</p>
+          </div>
+          <!-- 未完成章节列表 -->
+          <div v-else-if="todoList.length > 0" class="todo-list">
             <el-card
               v-for="item in todoList"
-              :key="item.id"
+              :key="item.chapter_id"
               class="todo-item"
               shadow="hover"
             >
               <div class="todo-header">
-                <el-tag :type="getTaskTypeColor(item.type)">{{ item.type }}</el-tag>
-                <span class="todo-title">{{ item.title }}</span>
+                <el-tag type="warning">待完成</el-tag>
+                <span class="todo-title">{{ item.chapter_title }}</span>
               </div>
               <div class="todo-info">
                 <span class="subject">
                   <el-icon><Reading /></el-icon>
-                  {{ item.subject }}
+                  {{ item.course_name }}（{{ item.class_name }}）
                 </span>
-                <span class="deadline" :class="{ urgent: isUrgent(item.deadline) }">
-                  <el-icon><Clock /></el-icon>
-                  截止时间：{{ formatDate(item.deadline) }}
+                <span>
+                  <el-icon><Document /></el-icon>
+                  进度：{{ item.completed_sections }} / {{ item.total_sections }} 题已通过
                 </span>
               </div>
               <div class="todo-actions">
-                <el-button type="primary" size="small" @click="goToTask(item)">去完成</el-button>
+                <el-button type="primary" size="small" @click="goToChapter(item)">去学习</el-button>
               </div>
             </el-card>
           </div>
-          <el-pagination
-            v-if="todoList.length > 0"
-            class="pagination"
-            v-model:current-page="todoPage"
-            :page-size="10"
-            layout="prev, pager, next"
-            :total="todoTotal"
-            @current-change="loadTodoList"
-          />
+          <!-- 兜底空状态 -->
+          <div v-else class="empty-state">
+            <el-empty description="暂无待办事项">
+              <el-icon :size="80" color="#d3d3d3"><DocumentChecked /></el-icon>
+            </el-empty>
+          </div>
         </el-tab-pane>
 
         <el-tab-pane label="班级公告" name="class">
@@ -199,7 +209,7 @@
       <h3 class="section-title">快捷入口</h3>
       <div class="access-cards">
         <div class="access-card" @click="goToAIChat">
-          <div class="card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);">
             <el-icon :size="32"><ChatDotRound /></el-icon>
           </div>
           <div class="card-title">AI对话</div>
@@ -207,7 +217,7 @@
         </div>
 
         <div class="access-card" @click="goToCourse">
-          <div class="card-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #5B8CFF 0%, #7CB8FF 100%);">
             <el-icon :size="32"><Reading /></el-icon>
           </div>
           <div class="card-title">课程学习</div>
@@ -215,7 +225,7 @@
         </div>
 
         <div class="access-card" @click="goToWrongBook">
-          <div class="card-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%);">
             <el-icon :size="32"><DocumentCopy /></el-icon>
           </div>
           <div class="card-title">错题本</div>
@@ -223,7 +233,7 @@
         </div>
 
         <div class="access-card" @click="goToCollection">
-          <div class="card-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #34D399 0%, #2DD4BF 100%);">
             <el-icon :size="32"><Star /></el-icon>
           </div>
           <div class="card-title">我的收藏</div>
@@ -231,7 +241,7 @@
         </div>
 
         <div class="access-card" @click="openJoinClassDialog">
-          <div class="card-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+          <div class="card-icon" style="background: linear-gradient(135deg, #93C5FD 0%, #60A5FA 100%);">
             <el-icon :size="32"><CirclePlus /></el-icon>
           </div>
           <div class="card-title">加入班级</div>
@@ -288,6 +298,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { Loading } from '@element-plus/icons-vue';
 import { studentAPI } from '@/services/index';
 import { downloadBlob, openBlobInNewTab } from '@/utils/file';
 
@@ -295,8 +306,9 @@ const router = useRouter();
 const studentName = ref(localStorage.getItem('userName') || '同学');
 const activeTab = ref('todo');
 const todoList = ref([]);
-const todoPage = ref(1);
-const todoTotal = ref(0);
+const todoLoading = ref(false);
+const allCompleted = ref(false);
+const hasCourses = ref(true);
 const classAnnouncements = ref([]);
 const classPage = ref(1);
 const classTotal = ref(0);
@@ -335,52 +347,18 @@ const priorityTagType = (priority) => {
   return 'warning';
 };
 
-const isUrgent = (deadline) => {
-  if (!deadline) return false;
-  const now = new Date();
-  const deadlineDate = new Date(deadline);
-  const diff = deadlineDate - now;
-  return diff > 0 && diff < 24 * 60 * 60 * 1000;
-};
-
-const getTaskTypeColor = (type) => {
-  const colorMap = {
-    讨论: 'primary',
-    作业: 'success',
-    考试: 'danger'
-  };
-  return colorMap[type] || 'info';
-};
-
 const loadTodoList = async () => {
+  todoLoading.value = true;
   try {
-    todoList.value = [
-      {
-        id: 1,
-        type: '作业',
-        title: '第三章课后习题',
-        subject: '数据结构',
-        deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 2,
-        type: '讨论',
-        title: '算法复杂度分析讨论',
-        subject: '算法设计',
-        deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: 3,
-        type: '考试',
-        title: '期中考试',
-        subject: '操作系统',
-        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
-    todoTotal.value = todoList.value.length;
+    const res = await studentAPI.getPendingChapters();
+    todoList.value = res?.data?.pending_chapters || [];
+    allCompleted.value = res?.data?.all_completed || false;
+    hasCourses.value = res?.data?.has_courses !== false;
   } catch (error) {
     console.error('加载待办事项失败:', error);
     ElMessage.error('加载待办事项失败');
+  } finally {
+    todoLoading.value = false;
   }
 };
 
@@ -478,8 +456,8 @@ const openExternalLink = (url) => {
   window.open(url, '_blank', 'noopener,noreferrer');
 };
 
-const goToTask = (task) => {
-  router.push({ name: 'TaskComplete', query: { id: task.id, type: task.type } });
+const goToChapter = (item) => {
+  router.push({ name: 'CourseStudy' });
 };
 
 const goToProfile = () => {
@@ -593,12 +571,12 @@ onMounted(() => {
   }
 
   .welcome-section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4F6EF7 0%, #7CB8FF 100%);
     color: white;
     padding: 30px;
     border-radius: 12px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 20px rgba(79, 110, 247, 0.28);
 
     h2 {
       margin: 0 0 10px 0;
@@ -634,6 +612,30 @@ onMounted(() => {
     .empty-state {
       padding: 60px 0;
       text-align: center;
+    }
+
+    .all-completed-state {
+      padding: 60px 20px;
+      text-align: center;
+
+      .completed-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+      }
+
+      h3 {
+        margin: 0 0 12px 0;
+        font-size: 22px;
+        font-weight: 600;
+        color: #67c23a;
+      }
+
+      p {
+        margin: 0;
+        font-size: 15px;
+        color: #909399;
+        line-height: 1.6;
+      }
     }
 
     .todo-list {

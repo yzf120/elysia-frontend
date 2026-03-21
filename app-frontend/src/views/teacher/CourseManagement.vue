@@ -16,7 +16,7 @@
             </van-button>
           </div>
 
-          <van-loading v-if="chaptersLoading" type="spinner" color="#667eea" class="loading-center" />
+          <van-loading v-if="chaptersLoading" type="spinner" color="#4F6EF7" class="loading-center" />
           <van-empty v-else-if="chapterTree.length === 0" description="暂无章节，点击新增" />
           <div v-else class="chapter-list">
             <div v-for="chapter in chapterTree" :key="chapter.id" class="chapter-group">
