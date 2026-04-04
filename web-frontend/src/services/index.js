@@ -296,6 +296,10 @@ export const teacherAPI = {
   getCodeRunResult: (runId) => api.get('/teacher/code/result', { params: { run_id: runId } }),
   getCodeRunRecords: (problemId) => api.get('/teacher/code/records', { params: { problem_id: problemId } }),
 
+  // 代码语法检查（仅编译，不运行）
+  checkCodeSyntax: (language, code) =>
+    api.post('/teacher/code/check', { language, code }),
+
   // 平台内容查询
   getSystemAnnouncements: fetchSystemAnnouncements,
   getPlatformBookshelf: fetchPlatformBookshelf,
@@ -432,6 +436,10 @@ export const studentAPI = {
 
   // 批量查询学生已完全通过的题目ID集合（用于课程目录打钩）
   getCodeProgress: (problemIds) => api.get('/student/code/progress', { params: { problem_ids: problemIds.join(',') } }),
+
+  // 代码语法检查（仅编译，不运行）
+  checkCodeSyntax: (language, code) =>
+    api.post('/student/code/check', { language, code }),
 
   // 查询班级公告列表（师生共用）
   getAnnouncements: (classId) => api.post('/class/announcements', { class_id: classId }),

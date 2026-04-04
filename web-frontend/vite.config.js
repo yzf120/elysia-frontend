@@ -23,5 +23,9 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true
+  },
+  // Monaco Editor 优化配置
+  optimizeDeps: {
+    include: ['monaco-editor']
   }
 });

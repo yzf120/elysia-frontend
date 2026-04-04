@@ -177,143 +177,71 @@
 
       </van-tab>
 
-      <!-- ===== Tab 2：代码编辑 ===== -->
+      <!-- ===== Tab 2：代码编写提示（IDE 编辑器已注释，移动端不提供代码编辑功能） ===== -->
+      <van-tab title="代码" name="code">
+        <div class="code-hint-container">
+          <div class="code-hint-icon">💻</div>
+          <div class="code-hint-title">请在电脑端编写代码</div>
+          <div class="code-hint-desc">
+            为了更好的编程体验，代码编辑功能仅在 Web 端提供。<br/>
+            请使用电脑浏览器访问本平台进行代码编写和提交。
+          </div>
+          <div class="code-hint-features">
+            <div class="feature-item">
+              <van-icon name="checked" color="#67C23A" /> 专业代码编辑器（Monaco Editor）
+            </div>
+            <div class="feature-item">
+              <van-icon name="checked" color="#67C23A" /> 实时语法高亮与错误检查
+            </div>
+            <div class="feature-item">
+              <van-icon name="checked" color="#67C23A" /> 代码自动补全
+            </div>
+            <div class="feature-item">
+              <van-icon name="checked" color="#67C23A" /> 多语言支持（Python / Java / Go / C++ / C）
+            </div>
+          </div>
+        </div>
+      </van-tab>
+
+      <!-- [已注释] 原 IDE 编辑器模板代码，保留以备后续恢复
       <van-tab title="代码" name="code">
         <div class="ide-container" :class="isDark ? 'theme-dark' : 'theme-light'">
-
-          <!-- IDE 工具栏 -->
           <div class="ide-toolbar">
             <van-dropdown-menu active-color="#4F6EF7" class="lang-dropdown">
-              <van-dropdown-item
-                v-model="selectedLang"
-                :options="langOptions"
-                @change="onLangChange"
-              />
+              <van-dropdown-item v-model="selectedLang" :options="langOptions" @change="onLangChange" />
             </van-dropdown-menu>
             <span class="lang-hint">{{ langHint }}</span>
-            <van-button size="mini" plain @click="toggleTheme" style="margin-left:auto;margin-right:6px" :title="isDark ? '切换为明亮' : '切换为暗黑'">
-              {{ isDark ? '☀️' : '🌙' }}
-            </van-button>
-            <van-button size="mini" plain @click="resetCode">
-              <van-icon name="replay" /> 重置
-            </van-button>
+            <van-button size="mini" plain @click="toggleTheme" style="margin-left:auto;margin-right:6px">{{ isDark ? '☀️' : '🌙' }}</van-button>
+            <van-button size="mini" plain @click="resetCode"><van-icon name="replay" /> 重置</van-button>
           </div>
-
-          <!-- 代码编辑区 -->
           <div class="ide-editor-wrap" ref="editorWrap" @wheel.prevent="onEditorWheel">
-            <!-- 行号 -->
-            <div class="line-numbers" ref="lineNumbersEl">
-              <div
-                v-for="n in lineCount"
-                :key="n"
-                class="line-num"
-              >{{ n }}</div>
-            </div>
-            <!-- 高亮层 -->
-            <pre
-              class="highlight-layer"
-              ref="highlightEl"
-              aria-hidden="true"
-              v-html="highlightedCode"
-            ></pre>
-            <!-- 点击拦截层 -->
-            <div
-              class="click-interceptor"
-              @mousedown.prevent="onEditorMousedown"
-              @wheel.prevent="onEditorWheel"
-            ></div>
-            <!-- 真实 textarea -->
-            <textarea
-              class="code-textarea"
-              ref="textareaEl"
-              v-model="code"
-              spellcheck="false"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              @input="onCodeInput"
-              @keydown="onKeydown"
-            ></textarea>
-            <!-- 自定义垂直滚动条 -->
+            <div class="line-numbers" ref="lineNumbersEl"><div v-for="n in lineCount" :key="n" class="line-num">{{ n }}</div></div>
+            <pre class="highlight-layer" ref="highlightEl" aria-hidden="true" v-html="highlightedCode"></pre>
+            <div class="click-interceptor" @mousedown.prevent="onEditorMousedown" @wheel.prevent="onEditorWheel"></div>
+            <textarea class="code-textarea" ref="textareaEl" v-model="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" @input="onCodeInput" @keydown="onKeydown"></textarea>
             <div class="custom-scrollbar-v" ref="scrollbarVEl" @mousedown.prevent="onScrollbarVMousedown">
               <div class="scrollbar-thumb-v" ref="thumbVEl" :style="thumbVStyle"></div>
             </div>
           </div>
-
-          <!-- 底部操作栏 -->
           <div class="ide-footer">
             <span class="code-stats">{{ lineCount }} 行 · {{ code.length }} 字符</span>
             <div class="footer-btns">
-              <van-button size="small" plain @click="onTest" :loading="isRunning" :disabled="isRunning">
-                <van-icon name="play-circle-o" /> 测试
-              </van-button>
-              <van-button size="small" type="primary" @click="onRun" :loading="isRunning" :disabled="isRunning">
-                <van-icon name="upgrade" /> 运行
-              </van-button>
+              <van-button size="small" plain @click="onTest" :loading="isRunning" :disabled="isRunning"><van-icon name="play-circle-o" /> 测试</van-button>
+              <van-button size="small" type="primary" @click="onRun" :loading="isRunning" :disabled="isRunning"><van-icon name="upgrade" /> 运行</van-button>
             </div>
           </div>
-
-          <!-- 结果弹窗 -->
-          <van-popup
-            v-model:show="showResult"
-            position="bottom"
-            round
-            :style="{ height: '55%' }"
-          >
+          <van-popup v-model:show="showResult" position="bottom" round :style="{ height: '55%' }">
             <div class="result-popup">
               <div class="result-header">
                 <span class="result-title">{{ resultTitle }}</span>
                 <van-icon name="cross" @click="showResult = false" />
               </div>
-              <div class="result-body">
-                <!-- 测试模式：可视化 case 列表 -->
-                <template v-if="testCaseResults.length > 0">
-                  <div
-                    v-for="tc in testCaseResults"
-                    :key="tc.index"
-                    class="test-case-item"
-                    :class="tc.passed ? 'case-pass' : 'case-fail'"
-                  >
-                    <div class="case-header">
-                      <span class="case-icon">{{ tc.passed ? '✓' : '✗' }}</span>
-                      <span class="case-title">样例 {{ tc.index }}</span>
-                      <van-tag :type="tc.passed ? 'success' : 'danger'" size="mini" style="margin-left:auto">
-                        {{ tc.passed ? '通过' : (tc.status === 'wrong_answer' ? '答案错误' : tc.status === 'runtime_error' ? '运行错误' : tc.status === 'time_limit_exceeded' ? '超时' : tc.status === 'compile_error' ? '编译错误' : '错误') }}
-                      </van-tag>
-                      <span v-if="tc.time_cost" class="case-time">{{ tc.time_cost }}ms</span>
-                    </div>
-                    <div class="case-body">
-                      <div class="case-row">
-                        <div class="case-col">
-                          <div class="case-label">输入</div>
-                          <pre class="case-code">{{ tc.input }}</pre>
-                        </div>
-                        <div class="case-col">
-                          <div class="case-label">预期输出</div>
-                          <pre class="case-code case-expected">{{ tc.expected_output }}</pre>
-                        </div>
-                        <div class="case-col">
-                          <div class="case-label">实际输出</div>
-                          <pre class="case-code" :class="tc.passed ? 'case-actual-pass' : 'case-actual-fail'">{{ tc.actual_output || (tc.error_msg ? '(运行出错)' : '(无输出)') }}</pre>
-                        </div>
-                      </div>
-                      <div v-if="tc.error_msg" class="case-error-msg">{{ tc.error_msg }}</div>
-                    </div>
-                  </div>
-                </template>
-                <!-- 运行模式 / 编译错误等：普通文本展示 -->
-                <template v-else>
-                  <van-tag :type="resultStatus === 'success' ? 'success' : 'danger'" size="medium">
-                    {{ resultStatus === 'success' ? '通过' : '错误' }}
-                  </van-tag>
-                  <pre class="result-output">{{ resultOutput }}</pre>
-                </template>
-              </div>
+              <div class="result-body">...</div>
             </div>
           </van-popup>
-
         </div>
       </van-tab>
+      -->
 
     </van-tabs>
 
@@ -1821,6 +1749,54 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ===== 代码编写提示页面样式 ===== */
+.code-hint-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+  min-height: 400px;
+}
+
+.code-hint-icon {
+  font-size: 56px;
+  margin-bottom: 20px;
+}
+
+.code-hint-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+.code-hint-desc {
+  font-size: 14px;
+  color: #909399;
+  line-height: 1.8;
+  margin-bottom: 28px;
+  max-width: 320px;
+}
+
+.code-hint-features {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f5f7fa;
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #606266;
+}
 .problem-code-page {
   min-height: 100vh;
   background: #f5f5f5;

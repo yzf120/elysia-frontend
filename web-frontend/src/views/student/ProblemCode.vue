@@ -206,51 +206,47 @@
           </div>
         </div>
 
-      <!-- 代码编辑区 -->
-        <div class="ide-editor-wrap" ref="editorWrap" @wheel.prevent="onEditorWheel">
-          <!-- 行号列 -->
-          <div class="line-numbers" ref="lineNumbersEl">
-            <div
-              v-for="n in lineCount"
-              :key="n"
-              class="line-num"
-            >{{ n }}</div>
-          </div>
-          <!-- 高亮层（只读，绝对定位在底层） -->
-          <pre
-            class="highlight-layer"
-            ref="highlightEl"
-            aria-hidden="true"
-            v-html="highlightedCode"
-          ></pre>
-          <!-- 点击拦截层：精确计算字符位置后再聚焦 textarea -->
-          <div
-            class="click-interceptor"
-            @mousedown.prevent="onEditorMousedown"
-            @wheel.prevent="onEditorWheel"
-          ></div>
-          <!-- 真实 textarea（透明，在高亮层上方） -->
-          <textarea
-            class="code-textarea"
-            ref="textareaEl"
+      <!-- 代码编辑区（Monaco Editor） -->
+        <div class="ide-editor-wrap">
+          <MonacoEditor
+            ref="monacoEditorRef"
             v-model="code"
-            spellcheck="false"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            @input="onCodeInput"
-            @keydown="onKeydown"
-          ></textarea>
-          <!-- 自定义垂直滚动条 -->
-          <div class="custom-scrollbar-v" ref="scrollbarVEl" @mousedown.prevent="onScrollbarVMousedown">
-            <div class="scrollbar-thumb-v" ref="thumbVEl" :style="thumbVStyle"></div>
+            :language="selectedLang"
+            :theme="isDark ? 'dark' : 'light'"
+            :syntax-checker="syntaxChecker"
+            :check-delay="1000"
+            @change="onCodeChange"
+            @diagnostics-change="onDiagnosticsChange"
+          />
+        </div>
+
+        <!-- 实时语法检查诊断信息面板 -->
+        <div v-if="codeDiagnostics.length > 0" class="diagnostics-panel">
+          <div class="diagnostics-header">
+            <span class="diagnostics-title">
+              <el-icon style="color:#f56c6c;margin-right:4px"><WarningFilled /></el-icon>
+              {{ codeDiagnostics.length }} issue{{ codeDiagnostics.length > 1 ? 's' : '' }}
+            </span>
+            <el-icon class="diagnostics-close" @click="codeDiagnostics = []"><Close /></el-icon>
+          </div>
+          <div class="diagnostics-body">
+            <div
+              v-for="(d, idx) in codeDiagnostics"
+              :key="idx"
+              class="diagnostic-item"
+              :class="d.severity === 'warning' ? 'diag-warning' : 'diag-error'"
+            >
+              <span class="diag-location">Ln {{ d.line }}, Col {{ d.column }}</span>
+              <span class="diag-severity-icon">{{ d.severity === 'warning' ? '⚠' : '✖' }}</span>
+              <span class="diag-message">{{ d.message }}</span>
+            </div>
           </div>
         </div>
 
         <!-- IDE 底部操作栏 -->
         <div class="ide-footer">
           <div class="footer-left">
-            <span class="code-stats">{{ lineCount }} 行 · {{ code.length }} 字符</span>
+            <span class="code-stats">{{ monacoLineCount }} 行 · {{ code.length }} 字符</span>
           </div>
           <div class="footer-right">
             <el-button size="default" plain @click="onTest" :loading="isRunning" :disabled="isRunning">
@@ -549,9 +545,10 @@ import { ElMessage } from 'element-plus'
 import {
   ArrowLeft, Timer, Coin, InfoFilled,
   RefreshLeft, VideoPlay, Upload, Close, ArrowUp, ArrowDown, Loading, VideoPause, Paperclip,
-  Clock, Plus, Setting, Star, StarFilled
+  Clock, Plus, Setting, Star, StarFilled, WarningFilled
 } from '@element-plus/icons-vue'
 import { studentAPI } from '@/services/index.js'
+import MonacoEditor from '@/components/MonacoEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -761,170 +758,12 @@ int main() {
 `
 }
 
-// ===== 语法高亮规则 =====
-const highlightRules = {
-  python: {
-    keywords: ['def', 'class', 'import', 'from', 'return', 'if', 'elif', 'else', 'for', 'while',
-      'in', 'not', 'and', 'or', 'True', 'False', 'None', 'pass', 'break', 'continue',
-      'try', 'except', 'finally', 'with', 'as', 'lambda', 'yield', 'global', 'nonlocal',
-      'del', 'raise', 'assert', 'is', 'print', 'input', 'len', 'range', 'int', 'str',
-      'list', 'dict', 'set', 'tuple', 'type', 'self', 'super']
-  },
-  java: {
-    keywords: ['public', 'private', 'protected', 'class', 'interface', 'extends', 'implements',
-      'static', 'final', 'void', 'int', 'long', 'double', 'float', 'boolean', 'char',
-      'byte', 'short', 'String', 'new', 'return', 'if', 'else', 'for', 'while', 'do',
-      'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'throws',
-      'import', 'package', 'this', 'super', 'null', 'true', 'false', 'instanceof',
-      'abstract', 'synchronized', 'volatile', 'transient', 'native', 'strictfp',
-      'System', 'out', 'println', 'Integer', 'Arrays', 'ArrayList', 'HashMap']
-  },
-  go: {
-    keywords: ['package', 'import', 'func', 'var', 'const', 'type', 'struct', 'interface',
-      'return', 'if', 'else', 'for', 'range', 'switch', 'case', 'default', 'break',
-      'continue', 'goto', 'fallthrough', 'defer', 'go', 'chan', 'select', 'map',
-      'make', 'new', 'len', 'cap', 'append', 'copy', 'delete', 'close', 'panic',
-      'recover', 'nil', 'true', 'false', 'int', 'int64', 'string', 'bool', 'byte',
-      'rune', 'float64', 'error', 'fmt', 'Println', 'Fprintln', 'Fscan', 'Scan']
-  },
-  cpp: {
-    keywords: ['include', 'define', 'ifdef', 'ifndef', 'endif', 'pragma',
-      'using', 'namespace', 'std', 'class', 'struct', 'public', 'private', 'protected',
-      'virtual', 'override', 'const', 'static', 'inline', 'extern', 'template',
-      'typename', 'int', 'long', 'double', 'float', 'bool', 'char', 'void', 'auto',
-      'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break',
-      'continue', 'new', 'delete', 'nullptr', 'true', 'false', 'this',
-      'cout', 'cin', 'endl', 'string', 'vector', 'map', 'set', 'pair',
-      'sort', 'min', 'max', 'swap', 'push_back', 'size', 'bits']
-  },
-  c: {
-    keywords: ['include', 'define', 'ifdef', 'ifndef', 'endif', 'pragma',
-      'struct', 'union', 'enum', 'typedef', 'const', 'static', 'extern', 'inline',
-      'volatile', 'register', 'auto',
-      'int', 'long', 'short', 'double', 'float', 'char', 'void', 'unsigned', 'signed',
-      'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default',
-      'break', 'continue', 'goto', 'sizeof',
-      'NULL', 'true', 'false',
-      'printf', 'scanf', 'fprintf', 'fscanf', 'sprintf', 'sscanf',
-      'malloc', 'calloc', 'realloc', 'free',
-      'strlen', 'strcpy', 'strcat', 'strcmp', 'memset', 'memcpy',
-      'stdin', 'stdout', 'stderr']
-  }
-}
-
-// 转义 HTML 特殊字符
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-// 对一行代码进行语法高亮
-function highlightLine(line, lang) {
-  if (!lang || !highlightRules[lang]) return escapeHtml(line)
-
-  const keywords = highlightRules[lang].keywords
-  let result = ''
-  let i = 0
-  const len = line.length
-
-  while (i < len) {
-    // 单行注释 // 或 #
-    if ((line[i] === '/' && line[i + 1] === '/') || (lang === 'python' && line[i] === '#')) {
-      result += `<span class="hl-comment">${escapeHtml(line.slice(i))}</span>`
-      break
-    }
-
-    // 字符串 " 或 '
-    if (line[i] === '"' || line[i] === "'") {
-      const quote = line[i]
-      let j = i + 1
-      while (j < len && line[j] !== quote) {
-        if (line[j] === '\\') j++ // 跳过转义
-        j++
-      }
-      j++ // 包含结束引号
-      result += `<span class="hl-string">${escapeHtml(line.slice(i, j))}</span>`
-      i = j
-      continue
-    }
-
-    // 数字
-    if (/[0-9]/.test(line[i]) && (i === 0 || !/[a-zA-Z_]/.test(line[i - 1]))) {
-      let j = i
-      while (j < len && /[0-9.]/.test(line[j])) j++
-      result += `<span class="hl-number">${escapeHtml(line.slice(i, j))}</span>`
-      i = j
-      continue
-    }
-
-    // 标识符或关键词
-    if (/[a-zA-Z_]/.test(line[i])) {
-      let j = i
-      while (j < len && /[a-zA-Z0-9_]/.test(line[j])) j++
-      const word = line.slice(i, j)
-      if (keywords.includes(word)) {
-        result += `<span class="hl-keyword">${escapeHtml(word)}</span>`
-      } else {
-        result += escapeHtml(word)
-      }
-      i = j
-      continue
-    }
-
-    // 其他字符
-    result += escapeHtml(line[i])
-    i++
-  }
-
-  return result
-}
-
-// 对整段代码进行高亮（处理多行注释）
-function highlightCode(code, lang) {
-  if (!lang || !highlightRules[lang]) return escapeHtml(code)
-
-  // 先处理多行注释 /* */
-  const lines = code.split('\n')
-  let inBlockComment = false
-  const processedLines = lines.map(line => {
-    if (inBlockComment) {
-      const endIdx = line.indexOf('*/')
-      if (endIdx !== -1) {
-        inBlockComment = false
-        const commentPart = line.slice(0, endIdx + 2)
-        const rest = line.slice(endIdx + 2)
-        return `<span class="hl-comment">${escapeHtml(commentPart)}</span>` + highlightLine(rest, lang)
-      }
-      return `<span class="hl-comment">${escapeHtml(line)}</span>`
-    }
-
-    const blockStart = line.indexOf('/*')
-    if (blockStart !== -1) {
-      const blockEnd = line.indexOf('*/', blockStart + 2)
-      if (blockEnd !== -1) {
-        // 同一行内的块注释
-        const before = line.slice(0, blockStart)
-        const comment = line.slice(blockStart, blockEnd + 2)
-        const after = line.slice(blockEnd + 2)
-        return highlightLine(before, lang) +
-          `<span class="hl-comment">${escapeHtml(comment)}</span>` +
-          highlightLine(after, lang)
-      } else {
-        inBlockComment = true
-        const before = line.slice(0, blockStart)
-        const comment = line.slice(blockStart)
-        return highlightLine(before, lang) + `<span class="hl-comment">${escapeHtml(comment)}</span>`
-      }
-    }
-
-    return highlightLine(line, lang)
-  })
-
-  return processedLines.join('\n')
-}
+/* [已注释] 旧的语法高亮规则和函数 — Monaco Editor 自带语法高亮，不再需要
+const highlightRules = { ... }
+function escapeHtml(text) { ... }
+function highlightLine(line, lang) { ... }
+function highlightCode(code, lang) { ... }
+*/
 
 // ===== 左侧 Tab =====
 const leftTab = ref('problem')
@@ -999,86 +838,12 @@ const toggleRecordCode = (record) => {
 // ===== 状态 =====
 const selectedLang = ref('python')
 const code = ref(codeTemplates['python'])
-const textareaEl = ref(null)
-const highlightEl = ref(null)
-const lineNumbersEl = ref(null)
-const editorWrap = ref(null)
-const scrollbarVEl = ref(null)
-const thumbVEl = ref(null)
+const monacoEditorRef = ref(null)
 
-// 滚动条滑块样式
-const thumbVStyle = ref({ top: '0px', height: '40px' })
-
-// 更新滚动条滑块位置和大小
-const updateScrollbar = () => {
-  if (!textareaEl.value || !scrollbarVEl.value) return
-  const ta = textareaEl.value
-  const trackH = scrollbarVEl.value.clientHeight
-  const contentH = ta.scrollHeight
-  const visibleH = ta.clientHeight
-  if (contentH <= visibleH) {
-    // 内容未超出，隐藏滑块
-    thumbVStyle.value = { top: '0px', height: '0px', opacity: '0' }
-    return
-  }
-  const thumbH = Math.max(30, (visibleH / contentH) * trackH)
-  const maxScroll = contentH - visibleH
-  const thumbTop = (ta.scrollTop / maxScroll) * (trackH - thumbH)
-  thumbVStyle.value = {
-    top: thumbTop + 'px',
-    height: thumbH + 'px',
-    opacity: '1'
-  }
-}
-
-// 拖动滚动条
-let isDraggingV = false
-let dragStartY = 0
-let dragStartScrollTop = 0
-
-const onScrollbarVMousedown = (e) => {
-  if (!thumbVEl.value || !textareaEl.value || !scrollbarVEl.value) return
-  const thumbRect = thumbVEl.value.getBoundingClientRect()
-  const trackRect = scrollbarVEl.value.getBoundingClientRect()
-  // 点击轨道空白区域：直接跳转
-  if (e.target !== thumbVEl.value) {
-    const ta = textareaEl.value
-    const trackH = scrollbarVEl.value.clientHeight
-    const thumbH = thumbVEl.value.clientHeight
-    const clickY = e.clientY - trackRect.top
-    const maxScroll = ta.scrollHeight - ta.clientHeight
-    const ratio = Math.max(0, Math.min(1, (clickY - thumbH / 2) / (trackH - thumbH)))
-    ta.scrollTop = ratio * maxScroll
-    syncScroll()
-    updateScrollbar()
-    return
-  }
-  // 拖动滑块
-  isDraggingV = true
-  dragStartY = e.clientY
-  dragStartScrollTop = textareaEl.value.scrollTop
-  document.addEventListener('mousemove', onScrollbarVMousemove)
-  document.addEventListener('mouseup', onScrollbarVMouseup)
-}
-
-const onScrollbarVMousemove = (e) => {
-  if (!isDraggingV || !textareaEl.value || !scrollbarVEl.value) return
-  const ta = textareaEl.value
-  const trackH = scrollbarVEl.value.clientHeight
-  const thumbH = thumbVEl.value.clientHeight
-  const maxScroll = ta.scrollHeight - ta.clientHeight
-  const dy = e.clientY - dragStartY
-  const ratio = dy / (trackH - thumbH)
-  ta.scrollTop = Math.max(0, Math.min(maxScroll, dragStartScrollTop + ratio * maxScroll))
-  syncScroll()
-  updateScrollbar()
-}
-
-const onScrollbarVMouseup = () => {
-  isDraggingV = false
-  document.removeEventListener('mousemove', onScrollbarVMousemove)
-  document.removeEventListener('mouseup', onScrollbarVMouseup)
-}
+// Monaco Editor 行数（响应式）
+const monacoLineCount = computed(() => {
+  return code.value.split('\n').length
+})
 
 // ===== 主题 =====
 const isDark = ref(true)
@@ -1093,23 +858,23 @@ const testCaseResults = ref([])
 
 const langHint = computed(() => langHintMap[selectedLang.value] || '')
 
-const lineCount = computed(() => {
-  return code.value.split('\n').length
-})
-
-// 最长行宽（用于末尾空白填充，保证每行都能被选中到行尾）
-const LINE_PAD = 120  // 每行末尾填充到至少120个字符宽度
-
-const highlightedCode = computed(() => {
-  const raw = highlightCode(code.value, selectedLang.value)
-  // 在每行末尾追加不可见空格，使高亮层每行都有足够宽度可被选中
-  return raw.split('\n').map(line => line + '<span class="line-pad"> </span>').join('\n')
-})
+/* [已注释] 旧的 textarea 编辑器交互函数 — Monaco Editor 自带这些功能
+const lineCount = computed(...)
+const highlightedCode = computed(...)
+const syncScroll = () => { ... }
+const ensureCursorVisible = () => { ... }
+const onEditorWheel = (e) => { ... }
+function getCharIndexAtX(text, x, font) { ... }
+function clientPosToCharIndex(clientX, clientY) { ... }
+const onEditorMousedown = (e) => { ... }
+const onSelectMousemove = (e) => { ... }
+const onSelectMouseup = () => { ... }
+const onKeydown = (e) => { ... }  // Tab、智能回车、括号自动补全等
+*/
 
 // 语言切换
 const onLangChange = (lang) => {
   code.value = codeTemplates[lang]
-  nextTick(() => syncScroll())
 }
 
 // 重置代码
@@ -1117,261 +882,29 @@ const resetCode = () => {
   code.value = codeTemplates[selectedLang.value]
 }
 
-// 代码输入
-const onCodeInput = () => {
-  nextTick(() => syncScroll())
+// Monaco Editor 内容变化回调
+const onCodeChange = (newCode) => {
+  // Monaco Editor 通过 v-model 自动同步
+  // 语法检查由 MonacoEditor 组件内部的 debounce 机制自动触发
 }
 
-// 同步滚动
-const syncScroll = () => {
-  if (!textareaEl.value || !highlightEl.value || !lineNumbersEl.value) return
-  highlightEl.value.scrollTop = textareaEl.value.scrollTop
-  highlightEl.value.scrollLeft = textareaEl.value.scrollLeft
-  lineNumbersEl.value.scrollTop = textareaEl.value.scrollTop
-  updateScrollbar()
+// 实时语法检查诊断信息列表
+const codeDiagnostics = ref([])
+
+// 诊断信息变化回调（由 MonacoEditor 组件触发）
+const onDiagnosticsChange = (diagnostics) => {
+  codeDiagnostics.value = diagnostics || []
 }
 
-// 确保光标所在行在可视区域内（自动滚动）
-const ensureCursorVisible = () => {
-  const ta = textareaEl.value
-  if (!ta) return
-  const pos = ta.selectionEnd
-  // 计算光标所在行号
-  const textBefore = code.value.slice(0, pos)
-  const lineIndex = textBefore.split('\n').length - 1
-  const lineHeightPx = 14 * 1.6  // font-size 14px * line-height 1.6
-  const paddingTop = 16
-  const cursorTop = paddingTop + lineIndex * lineHeightPx
-  const cursorBottom = cursorTop + lineHeightPx
-  const visibleTop = ta.scrollTop
-  const visibleBottom = ta.scrollTop + ta.clientHeight
-
-  if (cursorBottom > visibleBottom) {
-    // 光标在可视区域下方，向下滚动
-    ta.scrollTop = cursorBottom - ta.clientHeight
-  } else if (cursorTop < visibleTop) {
-    // 光标在可视区域上方，向上滚动
-    ta.scrollTop = cursorTop - paddingTop
-  }
-  syncScroll()
-}
-
-// 鼠标滚轮只滚动编辑器容器，不移动光标
-const onEditorWheel = (e) => {
-  if (!textareaEl.value) return
-  textareaEl.value.scrollTop += e.deltaY
-  textareaEl.value.scrollLeft += e.deltaX
-  syncScroll()
-  updateScrollbar()
-}
-
-// 用 canvas 测量字符宽度，找到点击位置最近的字符索引
-function getCharIndexAtX(text, x, font) {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-  ctx.font = font
-  // 二分查找最近字符
-  let lo = 0, hi = text.length
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2)
-    const w = ctx.measureText(text.slice(0, mid)).width
-    if (w < x) lo = mid + 1
-    else hi = mid
-  }
-  // 比较 lo-1 和 lo 哪个更近
-  if (lo > 0) {
-    const wPrev = ctx.measureText(text.slice(0, lo - 1)).width
-    const wCurr = ctx.measureText(text.slice(0, lo)).width
-    if (Math.abs(wPrev - x) < Math.abs(wCurr - x)) lo = lo - 1
-  }
-  return lo
-}
-
-// 将鼠标坐标转换为代码中的字符索引
-function clientPosToCharIndex(clientX, clientY) {
-  const ta = textareaEl.value
-  const rect = highlightEl.value.getBoundingClientRect()
-  const relY = clientY - rect.top + ta.scrollTop
-  const relX = clientX - rect.left + ta.scrollLeft
-
-  const lineHeightPx = 14 * 1.6  // font-size 14px * line-height 1.6
-  const paddingTop = 16
-  const paddingLeft = 16
-
-  const lines = code.value.split('\n')
-  const lineIndex = Math.max(0, Math.min(
-    Math.floor((relY - paddingTop) / lineHeightPx),
-    lines.length - 1
-  ))
-
-  const lineText = lines[lineIndex]
-  let charsBefore = 0
-  for (let i = 0; i < lineIndex; i++) {
-    charsBefore += lines[i].length + 1
-  }
-
-  let colIndex = 0
-  if (lineText.length > 0) {
-    const font = '14px \'JetBrains Mono\', \'Fira Code\', \'Courier New\', Consolas, monospace'
-    const xInLine = relX - paddingLeft
-    // 如果点击位置超出行末，直接定位到行末
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    ctx.font = font
-    const lineWidth = ctx.measureText(lineText).width
-    if (xInLine >= lineWidth) {
-      colIndex = lineText.length
-    } else {
-      colIndex = getCharIndexAtX(lineText, xInLine, font)
-    }
-  }
-
-  return charsBefore + colIndex
-}
-
-// 拖拽选中相关状态
-let isDraggingSelect = false
-let dragAnchorPos = 0  // 鼠标按下时的字符索引（锚点）
-
-// 点击拦截：精确计算行列，手动设置光标位置；按住拖拽时实时更新选区
-const onEditorMousedown = (e) => {
-  if (!textareaEl.value || !highlightEl.value) return
-  const ta = textareaEl.value
-
-  const pos = clientPosToCharIndex(e.clientX, e.clientY)
-  dragAnchorPos = pos
-  isDraggingSelect = true
-
-  ta.focus()
-  nextTick(() => {
-    ta.selectionStart = pos
-    ta.selectionEnd = pos
-  })
-
-  document.addEventListener('mousemove', onSelectMousemove)
-  document.addEventListener('mouseup', onSelectMouseup)
-}
-
-const onSelectMousemove = (e) => {
-  if (!isDraggingSelect || !textareaEl.value || !highlightEl.value) return
-  const ta = textareaEl.value
-  const pos = clientPosToCharIndex(e.clientX, e.clientY)
-
-  // 根据当前位置与锚点的关系决定选区方向
-  if (pos >= dragAnchorPos) {
-    ta.selectionStart = dragAnchorPos
-    ta.selectionEnd = pos
-  } else {
-    ta.selectionStart = pos
-    ta.selectionEnd = dragAnchorPos
-  }
-}
-
-const onSelectMouseup = () => {
-  isDraggingSelect = false
-  document.removeEventListener('mousemove', onSelectMousemove)
-  document.removeEventListener('mouseup', onSelectMouseup)
-}
-
-// Tab 键 & 智能回车 & 括号自动补全
-const onKeydown = (e) => {
-  const ta = e.target
-  const start = ta.selectionStart
-  const end = ta.selectionEnd
-  const val = code.value
-
-  // ===== Tab：插入4个空格 =====
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    code.value = val.slice(0, start) + '    ' + val.slice(end)
-    nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 4 })
-    return
-  }
-
-  // ===== Enter：智能缩进 =====
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    // 找到当前行的起始位置
-    const lineStart = val.lastIndexOf('\n', start - 1) + 1
-    const currentLine = val.slice(lineStart, start)
-    // 提取当前行的前导空格
-    const indentMatch = currentLine.match(/^(\s*)/)
-    const indent = indentMatch ? indentMatch[1] : ''
-    // 判断光标前一个非空字符是否是开括号 { ( [
-    const charBefore = val.slice(0, start).trimEnd().slice(-1)
-    const charAfter = val[end] // 光标后紧跟的字符
-    const openBrackets = ['{', '(', '[']
-    const closeBrackets = ['}', ')', ']']
-    const isOpenBracket = openBrackets.includes(charBefore)
-    const isMatchingClose = closeBrackets[openBrackets.indexOf(charBefore)] === charAfter
-
-    if (isOpenBracket && isMatchingClose) {
-      // 情况：光标在 { } 之间，回车后光标在中间行，关闭括号另起一行
-      const innerIndent = indent + '    '
-      const inserted = '\n' + innerIndent + '\n' + indent
-      code.value = val.slice(0, start) + inserted + val.slice(end)
-      nextTick(() => {
-        const newPos = start + 1 + innerIndent.length
-        ta.selectionStart = ta.selectionEnd = newPos
-        nextTick(() => ensureCursorVisible())
-      })
-    } else if (isOpenBracket) {
-      // 情况：行尾是开括号，但后面没有对应的关闭括号
-      const innerIndent = indent + '    '
-      code.value = val.slice(0, start) + '\n' + innerIndent + val.slice(end)
-      nextTick(() => {
-        ta.selectionStart = ta.selectionEnd = start + 1 + innerIndent.length
-        nextTick(() => ensureCursorVisible())
-      })
-    } else {
-      // 普通回车：继承当前行缩进
-      code.value = val.slice(0, start) + '\n' + indent + val.slice(end)
-      nextTick(() => {
-        ta.selectionStart = ta.selectionEnd = start + 1 + indent.length
-        nextTick(() => ensureCursorVisible())
-      })
-    }
-    return
-  }
-
-  // ===== 括号/引号自动补全 =====
-  const pairMap = { '{': '}', '(': ')', '[': ']' }
-  if (pairMap[e.key] && start === end) {
-    e.preventDefault()
-    const close = pairMap[e.key]
-    code.value = val.slice(0, start) + e.key + close + val.slice(end)
-    nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 1 })
-    return
-  }
-
-  // ===== 右括号跳过：光标后已有对应右括号时直接跳过 =====
-  const skipChars = ['}', ')', ']']
-  if (skipChars.includes(e.key) && val[start] === e.key && start === end) {
-    e.preventDefault()
-    nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 1 })
-    return
-  }
-
-  // ===== Backspace：删除成对括号 =====
-  if (e.key === 'Backspace' && start === end && start > 0) {
-    const before = val[start - 1]
-    const after = val[start]
-    const pairs = { '{': '}', '(': ')', '[': ']' }
-    if (pairs[before] === after) {
-      e.preventDefault()
-      code.value = val.slice(0, start - 1) + val.slice(start + 1)
-      nextTick(() => {
-        ta.selectionStart = ta.selectionEnd = start - 1
-        nextTick(() => ensureCursorVisible())
-      })
-    }
-  }
-
-  // ===== 上/下/Home/End/PageUp/PageDown：导航键滚动跟随光标 =====
-  const navKeys = ['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']
-  if (navKeys.includes(e.key)) {
-    // 导航键由浏览器原生处理光标移动，之后确保滚动跟随
-    nextTick(() => ensureCursorVisible())
+// 语法检查函数（传给 MonacoEditor 组件，由其 debounce 机制调用）
+const syntaxChecker = async (language, code) => {
+  try {
+    const res = await studentAPI.checkCodeSyntax(language, code)
+    // res 可能是 { data: { has_error, diagnostics } } 或直接 { has_error, diagnostics }
+    return res?.data || res
+  } catch (e) {
+    console.warn('[ProblemCode] 语法检查请求失败:', e)
+    return { has_error: false, diagnostics: [] }
   }
 }
 
@@ -2126,9 +1659,11 @@ onMounted(async () => {
   }
   problemLoading.value = false
 
+  // Monaco Editor 自动处理布局，无需手动同步滚动
   nextTick(() => {
-    syncScroll()
-    updateScrollbar()
+    if (monacoEditorRef.value) {
+      monacoEditorRef.value.focus()
+    }
   })
 
   // 如果路由携带 sessionId 参数（从收藏页跳转），自动打开AI答疑面板并加载对应会话
@@ -2647,138 +2182,24 @@ onMounted(async () => {
   }
 }
 
-/* 代码编辑区 */
+/* 代码编辑区（Monaco Editor） */
 .ide-editor-wrap {
   flex: 1;
-  display: flex;
   overflow: hidden;
   position: relative;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Consolas, monospace;
-  font-size: 14px;
-  line-height: 1.6;
   background: var(--ide-bg);
   transition: background 0.2s;
 }
 
-/* 行号 */
-.line-numbers {
-  width: 52px;
-  flex-shrink: 0;
-  background: var(--ide-bar-bg);
-  border-right: 1px solid var(--ide-border);
-  padding: 16px 0;
-  overflow: hidden;
-  user-select: none;
-  transition: background 0.2s, border-color 0.2s;
+/* [已注释] 旧的 textarea 编辑器样式 — Monaco Editor 自带行号、滚动条、语法高亮
+.line-numbers { ... }
+.highlight-layer { ... }
+.click-interceptor { ... }
+.custom-scrollbar-v { ... }
+.code-textarea { ... }
+*/
 
-  .line-num {
-    height: calc(14px * 1.6);
-    line-height: calc(14px * 1.6);
-    text-align: right;
-    padding-right: 12px;
-    font-size: 13px;
-    color: var(--ide-linenum);
-    font-family: inherit;
-  }
-}
-
-/* 高亮层 */
-.highlight-layer {
-  position: absolute;
-  left: 52px;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  padding: 16px 16px 16px 16px;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--ide-text);
-  background: transparent;
-  white-space: pre;
-  overflow: hidden;
-  pointer-events: none;
-  word-break: normal;
-  tab-size: 4;
-  border: none;
-  outline: none;
-  box-sizing: border-box;
-
-  /* 语法高亮颜色 */
-  :deep(.hl-keyword) {
-    color: var(--hl-keyword);
-    font-weight: 500;
-  }
-
-  :deep(.hl-string) {
-    color: var(--hl-string);
-  }
-
-  :deep(.hl-comment) {
-    color: var(--hl-comment);
-    font-style: italic;
-  }
-
-  :deep(.hl-number) {
-    color: var(--hl-number);
-  }
-
-  /* 行末填充空格：不可见，仅用于撑开行宽 */
-  :deep(.line-pad) {
-    display: inline-block;
-    min-width: 200px;
-    color: transparent;
-    user-select: none;
-    pointer-events: none;
-  }
-}
-
-/* 点击拦截层：覆盖在 textarea 上方，捕获鼠标点击 */
-.click-interceptor {
-  position: absolute;
-  left: 52px;
-  top: 0;
-  right: 16px; /* 为滚动条留出空间 */
-  bottom: 0;
-  z-index: 2;
-  cursor: text;
-}
-
-/* 自定义垂直滚动条 */
-.custom-scrollbar-v {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  background: var(--ide-bar-bg);
-  z-index: 10;
-  border-left: 1px solid var(--ide-border);
-  cursor: pointer;
-  transition: background 0.2s;
-
-  .scrollbar-thumb-v {
-    position: absolute;
-    left: 1px;
-    right: 1px;
-    background: var(--ide-scrollbar);
-    border-radius: 4px;
-    transition: background 0.15s;
-    cursor: grab;
-
-    &:hover {
-      background: var(--ide-scrollbar-h);
-    }
-
-    &:active {
-      cursor: grabbing;
-      background: var(--ide-scrollbar-a);
-    }
-  }
-}
-
-/* 真实 textarea */
+/* [已注释] 旧的 textarea CSS 样式
 .code-textarea {
   position: absolute;
   left: 52px;
@@ -2796,12 +2217,88 @@ onMounted(async () => {
   outline: none;
   resize: none;
   white-space: pre;
-  overflow: hidden;  /* 禁止 textarea 自身滚动，由 onEditorWheel 手动控制 */
+  overflow: hidden;
   word-break: normal;
   tab-size: 4;
   box-sizing: border-box;
   z-index: 1;
-  pointer-events: none; /* 鼠标事件交给 click-interceptor 处理 */
+  pointer-events: none;
+}
+*/
+
+/* 实时语法检查诊断面板 */
+.diagnostics-panel {
+  border-top: 1px solid var(--ide-border);
+  background: var(--ide-bar-bg);
+  max-height: 140px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: background 0.2s;
+
+  .diagnostics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    border-bottom: 1px solid var(--ide-border);
+
+    .diagnostics-title {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #f56c6c;
+    }
+
+    .diagnostics-close {
+      cursor: pointer;
+      color: var(--ide-stats);
+      font-size: 14px;
+      &:hover { color: var(--ide-text); }
+    }
+  }
+
+  .diagnostics-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+}
+
+.diagnostic-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Consolas, monospace;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .diag-location {
+    flex-shrink: 0;
+    color: var(--ide-stats);
+    min-width: 80px;
+  }
+
+  .diag-severity-icon {
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  &.diag-error .diag-severity-icon { color: #f56c6c; }
+  &.diag-warning .diag-severity-icon { color: #e6a23c; }
+
+  .diag-message {
+    color: var(--ide-text);
+    word-break: break-all;
+    line-height: 1.4;
+  }
 }
 
 /* IDE 底部 */
