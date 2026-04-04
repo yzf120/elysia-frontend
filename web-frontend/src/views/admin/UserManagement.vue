@@ -314,13 +314,14 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminSidebar from '@/components/admin/AdminSidebar.vue'
 import { adminAPI } from '@/services'
 import { downloadBlob } from '@/utils/file'
 
 const router = useRouter()
+const route = useRoute()
 const activeTab = ref('student')
 const activeMenu = computed(() => router.currentRoute.value.path)
 
@@ -657,6 +658,16 @@ const handleTeacherPageChange = (page) => {
 }
 
 onMounted(async () => {
+  // 处理路由参数
+  if (route.query.tab === 'teacher') {
+    activeTab.value = 'teacher'
+    
+    // 如果传入了verificationStatus参数，设置筛选条件
+    if (route.query.verificationStatus === 'pending') {
+      teacherFilters.value.verificationStatus = 'pending'
+    }
+  }
+  
   await Promise.all([loadStudents(), loadTeachers()])
 })
 </script>

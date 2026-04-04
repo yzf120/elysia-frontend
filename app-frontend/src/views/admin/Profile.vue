@@ -1,6 +1,6 @@
 <template>
   <div class="profile-page">
-    <van-nav-bar title="个人信息" left-arrow @click-left="$router.back()" class="fresh-nav-bar" />
+    <van-nav-bar title="个人中心" left-arrow @click-left="$router.back()" class="fresh-nav-bar" />
     
     <div class="page-container">
       <!-- 用户信息卡片 -->
@@ -15,37 +15,127 @@
         </div>
       </div>
 
-      <!-- 账号信息 -->
-      <div class="info-section fade-in">
-        <h4 class="section-title">账号信息</h4>
-        <van-cell-group inset class="info-group">
-          <van-cell title="手机号" :value="userInfo.phone_number || '-'" />
-          <van-cell title="邮箱" :value="userInfo.email || '-'" />
-          <van-cell title="真实姓名" :value="userInfo.real_name || '-'" />
-          <van-cell title="最后登录" :value="userInfo.last_login_time || '-'" />
-          <van-cell title="账号状态">
-            <template #value>
-              <van-tag :type="userInfo.status === 1 ? 'success' : 'danger'">
-                {{ userInfo.status === 1 ? '正常' : '已禁用' }}
-              </van-tag>
-            </template>
-          </van-cell>
-        </van-cell-group>
-      </div>
+      <!-- Tab 切换 -->
+      <van-tabs v-model:active="activeTab" animated swipeable class="profile-tabs fade-in">
+        <!-- 个人信息 Tab -->
+        <van-tab title="个人信息" name="profile">
+          <div class="tab-content">
+            <div class="info-section">
+              <van-cell-group inset class="info-group">
+                <van-cell title="手机号" :value="userInfo.phone_number || '-'" is-link @click="showPhoneDialog = true" />
+                <van-cell title="真实姓名" :value="userInfo.real_name || '-'" is-link @click="showRealNameDialog = true" />
+                <van-cell title="邮箱" :value="userInfo.email || '-'" is-link @click="showEmailDialog = true" />
+                <van-cell title="最后登录" :value="userInfo.last_login_time || '-'" />
+                <van-cell title="账号状态">
+                  <template #value>
+                    <van-tag :type="userInfo.status === 1 ? 'success' : 'danger'">
+                      {{ userInfo.status === 1 ? '正常' : '已禁用' }}
+                    </van-tag>
+                  </template>
+                </van-cell>
+              </van-cell-group>
+            </div>
+          </div>
+        </van-tab>
 
-      <!-- 操作按钮 -->
-      <div class="action-buttons fade-in">
-        <van-button round block type="primary" class="action-btn" @click="showPasswordDialog = true">
-          修改密码
-        </van-button>
-        <van-button round block type="primary" class="action-btn" @click="showEmailDialog = true">
-          绑定邮箱
-        </van-button>
-        <van-button round block type="danger" class="logout-btn" @click="handleLogout">
-          退出登录
-        </van-button>
-      </div>
+        <!-- 安全设置 Tab -->
+        <van-tab title="安全设置" name="security">
+          <div class="tab-content">
+            <div class="security-section">
+              <van-cell-group inset class="info-group">
+                <van-cell title="修改密码" is-link @click="showPasswordDialog = true">
+                  <template #label>
+                    <span class="cell-hint">定期修改密码，保障账号安全</span>
+                  </template>
+                </van-cell>
+              </van-cell-group>
+            </div>
+          </div>
+        </van-tab>
+      </van-tabs>
     </div>
+
+    <!-- 修改手机号弹窗 -->
+    <van-dialog
+      v-model:show="showPhoneDialog"
+      title="修改手机号"
+      show-cancel-button
+      @confirm="handleUpdatePhone"
+      :before-close="handlePhoneDialogClose"
+    >
+      <van-form ref="phoneFormRef" style="padding: 16px;">
+        <van-field
+          v-model="phoneForm.phone_number"
+          label="新手机号"
+          placeholder="请输入新手机号"
+          maxlength="11"
+          type="tel"
+          :rules="[
+            { required: true, message: '请输入手机号' },
+            { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
+          ]"
+        >
+          <template #button>
+            <van-button
+              size="small"
+              type="primary"
+              :disabled="phoneCodeCountdown > 0 || !phoneForm.phone_number || phoneForm.phone_number.length !== 11"
+              @click="handleSendPhoneCode"
+              :loading="sendingPhoneCode"
+            >
+              {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}秒` : '发送验证码' }}
+            </van-button>
+          </template>
+        </van-field>
+        <van-field
+          v-model="phoneForm.code"
+          label="验证码"
+          placeholder="请输入验证码"
+          maxlength="6"
+          type="digit"
+          :rules="[{ required: true, message: '请输入验证码' }]"
+        />
+      </van-form>
+    </van-dialog>
+
+    <!-- 修改真实姓名弹窗 -->
+    <van-dialog
+      v-model:show="showRealNameDialog"
+      title="修改真实姓名"
+      show-cancel-button
+      @confirm="handleUpdateRealName"
+      :before-close="handleRealNameDialogClose"
+    >
+      <van-form ref="realNameFormRef" style="padding: 16px;">
+        <van-field
+          v-model="realNameForm.real_name"
+          label="真实姓名"
+          placeholder="请输入真实姓名"
+          :rules="[{ required: true, message: '请输入真实姓名' }]"
+        />
+      </van-form>
+    </van-dialog>
+
+    <!-- 修改邮箱弹窗 -->
+    <van-dialog
+      v-model:show="showEmailDialog"
+      title="修改邮箱"
+      show-cancel-button
+      @confirm="handleUpdateEmail"
+      :before-close="handleEmailDialogClose"
+    >
+      <van-form ref="emailFormRef" style="padding: 16px;">
+        <van-field
+          v-model="emailForm.email"
+          label="邮箱地址"
+          placeholder="请输入邮箱地址"
+          :rules="[
+            { required: true, message: '请输入邮箱地址' },
+            { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: '邮箱格式不正确' }
+          ]"
+        />
+      </van-form>
+    </van-dialog>
 
     <!-- 修改密码弹窗 -->
     <van-dialog
@@ -53,7 +143,7 @@
       title="修改密码"
       show-cancel-button
       @confirm="handleChangePassword"
-      :before-close="handleBeforeClose"
+      :before-close="handlePasswordDialogClose"
     >
       <van-form ref="passwordFormRef" style="padding: 16px;">
         <van-field
@@ -85,54 +175,40 @@
         />
       </van-form>
     </van-dialog>
-
-    <!-- 绑定邮箱弹窗 -->
-    <van-dialog
-      v-model:show="showEmailDialog"
-      title="绑定邮箱"
-      show-cancel-button
-      @confirm="handleBindEmail"
-      :before-close="handleBeforeClose"
-    >
-      <van-form ref="emailFormRef" style="padding: 16px;">
-        <van-field
-          v-model="emailForm.email"
-          label="邮箱地址"
-          placeholder="请输入邮箱地址"
-          :rules="[
-            { required: true, message: '请输入邮箱地址' },
-            { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: '邮箱格式不正确' }
-          ]"
-        >
-          <template #button>
-            <van-button size="small" type="primary" :disabled="emailCodeCountdown > 0" @click="handleSendEmailCode">
-              {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}秒` : '发送验证码' }}
-            </van-button>
-          </template>
-        </van-field>
-        <van-field
-          v-model="emailForm.code"
-          label="验证码"
-          placeholder="请输入验证码"
-          maxlength="6"
-          :rules="[{ required: true, message: '请输入验证码' }]"
-        />
-      </van-form>
-    </van-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
 import { adminAPI } from '@/api'
 
 const router = useRouter()
 
 const userInfo = ref({})
-const showPasswordDialog = ref(false)
+const activeTab = ref('profile')
+
+// 弹窗显示状态
+const showPhoneDialog = ref(false)
+const showRealNameDialog = ref(false)
 const showEmailDialog = ref(false)
+const showPasswordDialog = ref(false)
+
+// 修改手机号表单
+const phoneFormRef = ref(null)
+const phoneForm = ref({ phone_number: '', code: '' })
+const sendingPhoneCode = ref(false)
+const phoneCodeCountdown = ref(0)
+let phoneCodeTimer = null
+
+// 修改真实姓名表单
+const realNameFormRef = ref(null)
+const realNameForm = ref({ real_name: '' })
+
+// 修改邮箱表单
+const emailFormRef = ref(null)
+const emailForm = ref({ email: '' })
 
 // 修改密码表单
 const passwordFormRef = ref(null)
@@ -141,15 +217,6 @@ const passwordForm = ref({
   newPassword: '',
   confirmPassword: ''
 })
-
-// 绑定邮箱表单
-const emailFormRef = ref(null)
-const emailForm = ref({
-  email: '',
-  code: ''
-})
-const emailCodeCountdown = ref(0)
-let emailCodeTimer = null
 
 // 验证确认密码
 const validateConfirmPassword = (val) => {
@@ -169,21 +236,126 @@ const loadUserInfo = async () => {
   }
 }
 
-// 修改密码
+// ==================== 修改手机号 ====================
+const handleSendPhoneCode = async () => {
+  if (!phoneForm.value.phone_number || phoneForm.value.phone_number.length !== 11) {
+    showToast('请输入正确的11位手机号')
+    return
+  }
+
+  sendingPhoneCode.value = true
+  try {
+    await adminAPI.sendUpdatePhoneCode(phoneForm.value.phone_number)
+    showToast({ type: 'success', message: '验证码已发送' })
+
+    // 开始倒计时
+    phoneCodeCountdown.value = 60
+    phoneCodeTimer = setInterval(() => {
+      phoneCodeCountdown.value--
+      if (phoneCodeCountdown.value <= 0) {
+        clearInterval(phoneCodeTimer)
+        phoneCodeTimer = null
+      }
+    }, 1000)
+  } catch (error) {
+    showToast('发送失败：' + error)
+  } finally {
+    sendingPhoneCode.value = false
+  }
+}
+
+const handleUpdatePhone = async () => {
+  try {
+    await phoneFormRef.value?.validate()
+    await adminAPI.updatePhone(phoneForm.value.phone_number, phoneForm.value.code)
+    showToast({ type: 'success', message: '手机号修改成功' })
+    showPhoneDialog.value = false
+    phoneForm.value = { phone_number: '', code: '' }
+    loadUserInfo()
+  } catch (error) {
+    if (error !== 'cancel') {
+      showToast('修改失败：' + error)
+    }
+  }
+}
+
+const handlePhoneDialogClose = (action) => {
+  if (action === 'cancel') {
+    phoneForm.value = { phone_number: '', code: '' }
+    return true
+  }
+  return false
+}
+
+// ==================== 修改真实姓名 ====================
+const handleUpdateRealName = async () => {
+  try {
+    await realNameFormRef.value?.validate()
+    await adminAPI.updateRealName(realNameForm.value.real_name)
+    showToast({ type: 'success', message: '真实姓名修改成功' })
+    showRealNameDialog.value = false
+    realNameForm.value = { real_name: '' }
+    loadUserInfo()
+  } catch (error) {
+    if (error !== 'cancel') {
+      showToast('修改失败：' + error)
+    }
+  }
+}
+
+const handleRealNameDialogClose = (action) => {
+  if (action === 'cancel') {
+    realNameForm.value = { real_name: '' }
+    return true
+  }
+  return false
+}
+
+// ==================== 修改邮箱 ====================
+const handleUpdateEmail = async () => {
+  try {
+    await emailFormRef.value?.validate()
+    await adminAPI.updateEmail(emailForm.value.email)
+    showToast({ type: 'success', message: '邮箱修改成功' })
+    showEmailDialog.value = false
+    emailForm.value = { email: '' }
+    loadUserInfo()
+  } catch (error) {
+    if (error !== 'cancel') {
+      showToast('修改失败：' + error)
+    }
+  }
+}
+
+const handleEmailDialogClose = (action) => {
+  if (action === 'cancel') {
+    emailForm.value = { email: '' }
+    return true
+  }
+  return false
+}
+
+// ==================== 修改密码 ====================
 const handleChangePassword = async () => {
   try {
     await passwordFormRef.value?.validate()
-    
+
     await adminAPI.updatePassword(
       passwordForm.value.oldPassword,
       passwordForm.value.newPassword
     )
-    
+
     showToast({ type: 'success', message: '密码修改成功，请重新登录' })
     showPasswordDialog.value = false
-    
+
+    // 清除缓存并跳转到登录页
     setTimeout(() => {
-      handleLogout()
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+      localStorage.removeItem('userType')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userName')
+      router.push('/')
     }, 1500)
   } catch (error) {
     if (error !== 'cancel') {
@@ -192,84 +364,12 @@ const handleChangePassword = async () => {
   }
 }
 
-// 发送邮箱验证码
-const handleSendEmailCode = async () => {
-  if (!emailForm.value.email) {
-    showToast('请先输入邮箱地址')
-    return
-  }
-  
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailForm.value.email)) {
-    showToast('邮箱格式不正确')
-    return
-  }
-
-  try {
-    // TODO: 调用发送邮箱验证码API
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    showToast({ type: 'success', message: '验证码已发送' })
-    
-    // 开始倒计时
-    emailCodeCountdown.value = 60
-    emailCodeTimer = setInterval(() => {
-      emailCodeCountdown.value--
-      if (emailCodeCountdown.value <= 0) {
-        clearInterval(emailCodeTimer)
-        emailCodeTimer = null
-      }
-    }, 1000)
-  } catch (error) {
-    showToast('发送失败：' + error)
-  }
-}
-
-// 绑定邮箱
-const handleBindEmail = async () => {
-  try {
-    await emailFormRef.value?.validate()
-    
-    await adminAPI.updateEmail(emailForm.value.email, emailForm.value.code)
-    
-    showToast({ type: 'success', message: '邮箱绑定成功' })
-    showEmailDialog.value = false
-    
-    // 重新加载用户信息
-    loadUserInfo()
-  } catch (error) {
-    if (error !== 'cancel') {
-      showToast('绑定失败：' + error)
-    }
-  }
-}
-
-// 弹窗关闭前处理
-const handleBeforeClose = (action) => {
+const handlePasswordDialogClose = (action) => {
   if (action === 'cancel') {
+    passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
     return true
   }
   return false
-}
-
-// 退出登录
-const handleLogout = async () => {
-  showConfirmDialog({
-    title: '提示',
-    message: '确定要退出登录吗？'
-  }).then(async () => {
-    try {
-      await adminAPI.logout()
-    } catch (error) {
-      console.error('退出登录失败:', error)
-    } finally {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
-      localStorage.removeItem('userType')
-      localStorage.removeItem('userId')
-      localStorage.removeItem('userName')
-      showToast({ type: 'success', message: '已退出登录' })
-      router.push('/')
-    }
-  }).catch(() => {})
 }
 
 onMounted(() => {
@@ -277,8 +377,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (emailCodeTimer) {
-    clearInterval(emailCodeTimer)
+  if (phoneCodeTimer) {
+    clearInterval(phoneCodeTimer)
   }
 })
 </script>
@@ -370,17 +470,38 @@ onUnmounted(() => {
   color: #64748B;
 }
 
-.info-section {
-  margin-bottom: 20px;
-  animation: fadeIn 0.5s ease-out 0.1s both;
+.profile-tabs {
+  border-radius: 16px;
+  overflow: hidden;
 }
 
-.section-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1F2937;
-  margin-bottom: 12px;
-  padding-left: 4px;
+.profile-tabs :deep(.van-tabs__nav) {
+  background: white;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.profile-tabs :deep(.van-tab--active) {
+  color: #4F6EF7;
+  font-weight: 600;
+}
+
+.profile-tabs :deep(.van-tabs__line) {
+  background: linear-gradient(135deg, #4F6EF7, #60A5FA);
+  height: 3px;
+  border-radius: 3px;
+}
+
+.tab-content {
+  padding: 16px 0;
+}
+
+.info-section {
+  margin-bottom: 16px;
+}
+
+.security-section {
+  margin-bottom: 16px;
 }
 
 .info-group {
@@ -390,38 +511,9 @@ onUnmounted(() => {
   background: white;
 }
 
-.action-buttons {
-  margin-top: 32px;
-  animation: fadeIn 0.5s ease-out 0.2s both;
-}
-
-.action-btn {
-  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%) !important;
-  border: none !important;
-  box-shadow: 0 8px 16px rgba(79, 110, 247, 0.24);
-  font-weight: 600;
-  height: 48px;
-  margin-bottom: 12px;
-  transition: all 0.3s;
-}
-
-.action-btn:active {
-  transform: scale(0.98);
-  box-shadow: 0 4px 10px rgba(79, 110, 247, 0.3);
-}
-
-.logout-btn {
-  background: linear-gradient(135deg, #F87171 0%, #EF4444 100%) !important;
-  border: none !important;
-  box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
-  font-weight: 600;
-  height: 48px;
-  transition: all 0.3s;
-}
-
-.logout-btn:active {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(248, 113, 113, 0.4);
+.cell-hint {
+  font-size: 12px;
+  color: #94A3B8;
 }
 
 @keyframes fadeIn {

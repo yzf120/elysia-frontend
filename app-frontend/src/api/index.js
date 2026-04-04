@@ -76,6 +76,19 @@ export const adminAPI = {
   logout: () => 
     api.post('/admin/auth/logout'),
 
+  // 管理员个人信息接口
+  getProfile: () => api.get('/admin/profile'),
+  updatePassword: (oldPassword, newPassword) =>
+    api.post('/admin/profile/password', { old_password: oldPassword, new_password: newPassword }),
+  updateEmail: (email) =>
+    api.post('/admin/profile/email', { email }),
+  updateRealName: (realName) =>
+    api.post('/admin/profile/real-name', { real_name: realName }),
+  sendUpdatePhoneCode: (phoneNumber) =>
+    api.post('/admin/profile/phone/send-code', { phone_number: phoneNumber }),
+  updatePhone: (phoneNumber, code) =>
+    api.post('/admin/profile/phone', { phone_number: phoneNumber, code }),
+
   // ==================== 意图管理接口 ====================
   // 意图字典
   listIntentDicts: (params = {}) =>
@@ -204,6 +217,18 @@ export const teacherAPI = {
   deleteSection: (teacherId, sectionId) =>
     api.post('/teacher/section/delete', { teacher_id: teacherId, section_id: sectionId }),
 
+  // ---- 学习资料管理 ----
+  uploadMaterial: (formData) =>
+    api.post('/teacher/material/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  deleteMaterial: (teacherId, materialId) =>
+    api.post('/teacher/material/delete', { teacher_id: teacherId, material_id: materialId }),
+  getMaterials: (sectionId) =>
+    api.post('/material/list', { section_id: sectionId }),
+  viewMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/view`, { responseType: 'blob' }),
+  downloadMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/download`, { responseType: 'blob' }),
+
   // ---- 公告管理 ----
   // 发布公告（仅教师）
   publishAnnouncement: (teacherId, classId, title, content) =>
@@ -295,6 +320,9 @@ export const studentAPI = {
     api.post('/student/profile/password', { old_password: oldPassword, new_password: newPassword }),
   getStudyStats: () => api.get('/student/profile/study-stats'),
 
+  // 做题画像数据
+  getCodingStats: () => api.get('/student/profile/coding-stats'),
+
   // 待办事项（未完成章节）
   getPendingChapters: () => api.get('/student/pending-chapters'),
 
@@ -342,6 +370,14 @@ export const studentAPI = {
   // 查询班级章节列表（含小节，师生共用）
   getClassChapters: (classId) =>
     api.post('/class/chapters', { class_id: classId }),
+
+  // 学习资料（学生端）
+  getMaterials: (sectionId) =>
+    api.post('/material/list', { section_id: sectionId }),
+  viewMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/view`, { responseType: 'blob' }),
+  downloadMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/download`, { responseType: 'blob' }),
 
   // 查询班级公告列表（师生共用）
   getAnnouncements: (classId) =>

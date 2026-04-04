@@ -73,6 +73,64 @@
           </div>
         </div>
 
+        <!-- 做题画像数据 -->
+        <div class="stats-overview coding-stats" v-if="codingStats.hasProfile">
+          <h3 class="section-mini-title">🎯 做题画像</h3>
+          <div class="mini-stat-list">
+            <div class="mini-stat-item">
+              <div class="mini-stat-icon icon-solve">
+                <el-icon><Finished /></el-icon>
+              </div>
+              <div class="mini-stat-detail">
+                <span class="mini-stat-value">{{ codingStats.solvedProblemCount }}/{{ codingStats.attemptedProblemCount }}</span>
+                <span class="mini-stat-label">已解决/尝试题目</span>
+              </div>
+            </div>
+            <div class="mini-stat-item">
+              <div class="mini-stat-icon icon-rate">
+                <el-icon><TrendCharts /></el-icon>
+              </div>
+              <div class="mini-stat-detail">
+                <span class="mini-stat-value">{{ (codingStats.acceptRate * 100).toFixed(1) }}%</span>
+                <span class="mini-stat-label">通过率（{{ codingStats.totalSubmissions }} 次提交）</span>
+              </div>
+            </div>
+            <div class="mini-stat-item">
+              <div class="mini-stat-icon icon-lang">
+                <el-icon><Monitor /></el-icon>
+              </div>
+              <div class="mini-stat-detail">
+                <span class="mini-stat-value">{{ codingStats.preferredLanguage || '-' }}</span>
+                <span class="mini-stat-label">最常用语言</span>
+              </div>
+            </div>
+            <div class="mini-stat-item" v-if="codingStats.languageStats && Object.keys(codingStats.languageStats).length > 0">
+              <div class="mini-stat-icon icon-stats">
+                <el-icon><DataAnalysis /></el-icon>
+              </div>
+              <div class="mini-stat-detail">
+                <div class="lang-tags">
+                  <span class="lang-tag" v-for="(count, lang) in codingStats.languageStats" :key="lang">
+                    {{ lang }}: {{ count }}次
+                  </span>
+                </div>
+                <span class="mini-stat-label">语言使用统计</span>
+              </div>
+            </div>
+            <div class="mini-stat-item">
+              <div class="mini-stat-icon icon-level">
+                <el-icon><Medal /></el-icon>
+              </div>
+              <div class="mini-stat-detail">
+                <span class="mini-stat-value">
+                  <el-tag :type="levelTagType" size="small" round>{{ levelLabel }}</el-tag>
+                </span>
+                <span class="mini-stat-label">AI 评估能力等级</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 快捷操作 -->
         <div class="quick-actions">
           <button 
@@ -246,7 +304,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { studentAPI } from '@/services/index';
@@ -272,6 +330,32 @@ const studyStats = ref({
   completedChapters: 0,
   totalChapters: 0,
   aiSessions: 0
+});
+
+// 做题画像数据
+const codingStats = ref({
+  hasProfile: false,
+  totalSubmissions: 0,
+  acceptedCount: 0,
+  acceptRate: 0,
+  solvedProblemCount: 0,
+  attemptedProblemCount: 0,
+  preferredLanguage: '',
+  languageStats: {},
+  commonErrors: [],
+  difficultyLevel: 'beginner',
+  avgTimeCost: 0,
+  lastSubmitTime: null
+});
+
+// 能力等级标签
+const levelLabel = computed(() => {
+  const map = { beginner: '初学者', intermediate: '进阶者', advanced: '高手' };
+  return map[codingStats.value.difficultyLevel] || '初学者';
+});
+const levelTagType = computed(() => {
+  const map = { beginner: 'info', intermediate: 'warning', advanced: 'success' };
+  return map[codingStats.value.difficultyLevel] || 'info';
 });
 
 // 安全设置表单
@@ -319,6 +403,32 @@ const loadStudyStats = async () => {
     }
   } catch (error) {
     console.error('加载学习统计失败:', error);
+  }
+};
+
+// 加载做题画像
+const loadCodingStats = async () => {
+  try {
+    const res = await studentAPI.getCodingStats();
+    const data = res?.data;
+    if (data && data.has_profile) {
+      codingStats.value = {
+        hasProfile: true,
+        totalSubmissions: data.total_submissions || 0,
+        acceptedCount: data.accepted_count || 0,
+        acceptRate: data.accept_rate || 0,
+        solvedProblemCount: data.solved_problem_count || 0,
+        attemptedProblemCount: data.attempted_problem_count || 0,
+        preferredLanguage: data.preferred_language || '',
+        languageStats: data.language_stats || {},
+        commonErrors: data.common_errors || [],
+        difficultyLevel: data.difficulty_level || 'beginner',
+        avgTimeCost: data.avg_time_cost || 0,
+        lastSubmitTime: data.last_submit_time
+      };
+    }
+  } catch (error) {
+    console.error('加载做题画像失败:', error);
   }
 };
 
@@ -410,6 +520,7 @@ const getGradeLabel = (grade) => {
 onMounted(() => {
   loadProfile();
   loadStudyStats();
+  loadCodingStats();
 });
 </script>
 
@@ -685,6 +796,31 @@ onMounted(() => {
         background: linear-gradient(135deg, #ecfdf5, #d1fae5);
         color: #10b981;
       }
+
+      &.icon-solve {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        color: #d97706;
+      }
+
+      &.icon-rate {
+        background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+        color: #7c3aed;
+      }
+
+      &.icon-lang {
+        background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+        color: #0284c7;
+      }
+
+      &.icon-stats {
+        background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+        color: #db2777;
+      }
+
+      &.icon-level {
+        background: linear-gradient(135deg, #fff7ed, #fed7aa);
+        color: #ea580c;
+      }
     }
 
     .mini-stat-detail {
@@ -703,6 +839,22 @@ onMounted(() => {
         color: #9ca3af;
         margin-top: 2px;
       }
+    }
+  }
+
+  .lang-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    .lang-tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      background: #f3f4f6;
+      color: #374151;
     }
   }
 }

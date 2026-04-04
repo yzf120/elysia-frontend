@@ -130,12 +130,15 @@
                 @click="viewSection(section)"
               >
                 <div class="problem-left">
-                  <div class="problem-difficulty" :class="section.section_type === 1 ? 'diff-problem' : 'diff-discuss'">
-                    {{ section.section_type === 1 ? '算法题' : '讨论' }}
+                  <div class="problem-difficulty" :class="section.section_type === 1 ? 'diff-problem' : section.section_type === 3 ? 'diff-material' : 'diff-discuss'">
+                    {{ section.section_type === 1 ? '算法题' : section.section_type === 3 ? '学习资料' : '讨论' }}
                   </div>
                   <div class="problem-info">
                     <div class="problem-title">{{ section.title }}</div>
-                    <div v-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
+                    <div v-if="section.section_type === 3 && section.material_count" class="problem-tags" style="color:#e6a23c;font-size:12px;margin-top:2px">
+                      {{ section.material_count }}份资料
+                    </div>
+                    <div v-else-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
                       {{ section.description }}
                     </div>
                   </div>
@@ -185,6 +188,54 @@
             <span>发布时间：{{ currentDiscussion.create_time || '未知' }}</span>
           </div>
           <div class="discuss-content">{{ currentDiscussion.content || '暂无内容' }}</div>
+        </div>
+      </div>
+    </van-popup>
+
+    <!-- ===== 学习资料弹窗 ===== -->
+    <van-popup
+      v-model:show="showMaterialDetail"
+      position="bottom"
+      round
+      :style="{ height: '75%', overflowY: 'auto' }"
+    >
+      <div class="material-detail">
+        <div class="discuss-header">
+          <div class="discuss-title-row">
+            <span class="discuss-title">{{ currentMaterialSection ? currentMaterialSection.title : '学习资料' }}</span>
+            <van-icon name="cross" size="20" color="#909399" @click="showMaterialDetail = false" />
+          </div>
+        </div>
+        <div style="padding: 0 16px 20px">
+          <div v-if="materialLoading" style="text-align:center;padding:40px 0">
+            <van-loading type="spinner" color="#4F6EF7" />
+          </div>
+          <div v-else-if="materialList.length === 0" style="text-align:center;padding:40px 0;color:#999;font-size:14px">
+            暂无学习资料
+          </div>
+          <div v-else class="material-cards">
+            <div v-for="mat in materialList" :key="mat.material_id" class="mat-card">
+              <div class="mat-card-top">
+                <van-tag :type="materialTagType(mat.material_type)" size="medium">{{ materialTypeLabel(mat.material_type) }}</van-tag>
+                <span class="mat-card-title">{{ mat.title }}</span>
+              </div>
+              <div v-if="mat.material_type === 'text' && mat.description" class="mat-text-body">
+                {{ mat.description }}
+              </div>
+              <div v-if="mat.file_name && mat.material_type !== 'text'" class="mat-file-row">
+                <span>{{ mat.file_name }}</span>
+                <span v-if="mat.file_size" style="color:#909399;margin-left:8px">{{ formatFileSize(mat.file_size) }}</span>
+              </div>
+              <div class="mat-card-actions">
+                <van-button v-if="mat.material_type === 'pdf' || mat.material_type === 'video'" size="small" type="primary" plain @click="viewMaterialOnline(mat)">
+                  在线查看
+                </van-button>
+                <van-button v-if="mat.material_type === 'pdf' || mat.material_type === 'word'" size="small" type="success" plain @click="downloadMaterialAttachment(mat)">
+                  下载
+                </van-button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </van-popup>
@@ -500,6 +551,12 @@ const viewSection = async (section) => {
     } catch (e) {
       showToast({ type: 'fail', message: '题目信息获取失败' })
     }
+  } else if (section.section_type === 3) {
+    // 学习资料
+    currentMaterialSection.value = section
+    materialList.value = []
+    showMaterialDetail.value = true
+    loadMaterialList(section.section_id)
   } else {
     // 讨论
     currentDiscussion.value = {
@@ -508,6 +565,82 @@ const viewSection = async (section) => {
       create_time: section.create_time
     }
     showDiscussDetail.value = true
+  }
+}
+
+// ==================== 学习资料 ====================
+const showMaterialDetail = ref(false)
+const currentMaterialSection = ref(null)
+const materialList = ref([])
+const materialLoading = ref(false)
+
+const loadMaterialList = async (sectionId) => {
+  materialLoading.value = true
+  try {
+    const res = await studentAPI.getMaterials(sectionId)
+    materialList.value = res.data?.materials || res.materials || []
+  } catch (e) {
+    materialList.value = []
+  } finally {
+    materialLoading.value = false
+  }
+}
+
+const materialTypeLabel = (type) => ({
+  pdf: 'PDF文档', word: 'Word文档', video: '视频', text: '文字'
+}[type] || type)
+
+const materialTagType = (type) => ({
+  pdf: 'danger', word: 'primary', video: 'warning', text: 'default'
+}[type] || 'default')
+
+const formatFileSize = (size) => {
+  if (size < 1024) return size + 'B'
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + 'KB'
+  return (size / (1024 * 1024)).toFixed(1) + 'MB'
+}
+
+const viewMaterialOnline = async (mat) => {
+  if (mat.material_type === 'word') {
+    showToast('Word 文档不支持在线预览，已开始下载')
+    downloadMaterialAttachment(mat)
+    return
+  }
+  try {
+    const token = localStorage.getItem('token')
+    const url = `/api/material/file/${mat.material_id}/view`
+    const resp = await fetch(url, { headers: { Authorization: token ? `Bearer ${token}` : '' } })
+    if (!resp.ok) { showToast({ type: 'fail', message: '查看失败' }); return }
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    window.open(objectUrl, '_blank')
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 120 * 1000)
+  } catch (e) {
+    showToast({ type: 'fail', message: '查看资料失败' })
+  }
+}
+
+const downloadMaterialAttachment = async (mat) => {
+  if (mat.material_type === 'video') {
+    showToast('视频仅支持在线查看')
+    return
+  }
+  try {
+    const token = localStorage.getItem('token')
+    const url = `/api/material/file/${mat.material_id}/download`
+    const resp = await fetch(url, { headers: { Authorization: token ? `Bearer ${token}` : '' } })
+    if (!resp.ok) { showToast({ type: 'fail', message: '下载失败' }); return }
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = mat.file_name || 'download'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000)
+  } catch (e) {
+    showToast({ type: 'fail', message: '下载失败' })
   }
 }
 
@@ -706,6 +839,49 @@ const goToSubmit = () => {
 .diff-hard { background: #fce4ec; color: #e91e63; }
 .diff-problem { background: #e8f0fe; color: #4F6EF7; }
 .diff-discuss { background: #fff3e0; color: #ff9800; }
+.diff-material { background: #fef0e0; color: #e6a23c; }
+
+/* 学习资料卡片 */
+.material-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mat-card {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
+}
+.mat-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mat-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+.mat-text-body {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.7;
+  white-space: pre-line;
+  background: #f5f7fa;
+  border-radius: 6px;
+  padding: 10px;
+}
+.mat-file-row {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #606266;
+}
+.mat-card-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
 
 .problem-info {
   flex: 1;

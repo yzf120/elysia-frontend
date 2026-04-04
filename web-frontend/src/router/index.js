@@ -199,6 +199,12 @@ const routes = [
     meta: { title: '班级管理', requiresAuth: true, role: 'teacher' }
   },
   {
+    path: '/teacher/problem/:problemId/code',
+    name: 'TeacherProblemCode',
+    component: () => import('../views/teacher/ProblemCode.vue'),
+    meta: { title: '题目编程调试', requiresAuth: true, role: 'teacher' }
+  },
+  {
     path: '/teacher/class/:classId',
     name: 'TeacherClassDetail',
     component: () => import('../views/teacher/ClassDetail.vue'),

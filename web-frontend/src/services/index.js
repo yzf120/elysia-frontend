@@ -89,6 +89,12 @@ export const adminAPI = {
     api.post('/admin/profile/password', { old_password: oldPassword, new_password: newPassword }),
   updateEmail: (email, code) =>
     api.post('/admin/profile/email', { email, code }),
+  updateRealName: (realName) =>
+    api.post('/admin/profile/real-name', { real_name: realName }),
+  sendUpdatePhoneCode: (phoneNumber) =>
+    api.post('/admin/profile/phone/send-code', { phone_number: phoneNumber }),
+  updatePhone: (phoneNumber, code) =>
+    api.post('/admin/profile/phone', { phone_number: phoneNumber, code }),
 
   // 平台系统公告管理
   listSystemAnnouncements: (params = {}) =>
@@ -254,6 +260,18 @@ export const teacherAPI = {
   reorderSections: (teacherId, chapterId, orders) =>
     api.post('/teacher/section/reorder', { teacher_id: teacherId, chapter_id: chapterId, orders }),
 
+  // ---- 学习资料管理 ----
+  uploadMaterial: (formData) =>
+    api.post('/teacher/material/upload', formData, multipartConfig),
+  deleteMaterial: (teacherId, materialId) =>
+    api.post('/teacher/material/delete', { teacher_id: teacherId, material_id: materialId }),
+  getMaterials: (sectionId) =>
+    api.post('/material/list', { section_id: sectionId }),
+  viewMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/view`, { responseType: 'blob' }),
+  downloadMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/download`, { responseType: 'blob' }),
+
   // ---- 班级公告管理 ----
   publishAnnouncement: (teacherId, classId, title, content) =>
     api.post('/teacher/class/announcement/publish', { teacher_id: teacherId, class_id: classId, title, content }),
@@ -261,6 +279,22 @@ export const teacherAPI = {
     api.post('/teacher/class/announcement/delete', { teacher_id: teacherId, class_id: classId, announcement_id: announcementId }),
   getAnnouncements: (classId) =>
     api.post('/class/announcements', { class_id: classId }),
+
+  // ---- 题目管理（教师端编辑） ----
+  getProblem: (id) => api.get('/problem/get', { params: { id } }),
+  updateProblem: (data) => api.post('/teacher/problem/update', data),
+  createProblem: (data) => api.post('/teacher/problem/create', data),
+
+  // ---- 教师代码运行 ----
+  submitCodeRun: (problemId, language, code, runType) =>
+    api.post('/teacher/code/run', {
+      problem_id: problemId,
+      language,
+      code,
+      run_type: runType || 'test'
+    }),
+  getCodeRunResult: (runId) => api.get('/teacher/code/result', { params: { run_id: runId } }),
+  getCodeRunRecords: (problemId) => api.get('/teacher/code/records', { params: { problem_id: problemId } }),
 
   // 平台内容查询
   getSystemAnnouncements: fetchSystemAnnouncements,
@@ -345,6 +379,9 @@ export const studentAPI = {
     api.post('/student/profile/password', { old_password: oldPassword, new_password: newPassword }),
   getStudyStats: () => api.get('/student/profile/study-stats'),
 
+  // 做题画像数据
+  getCodingStats: () => api.get('/student/profile/coding-stats'),
+
   // 待办事项（未完成章节）
   getPendingChapters: () => api.get('/student/pending-chapters'),
 
@@ -365,6 +402,14 @@ export const studentAPI = {
 
   // 查询班级章节列表（含小节，师生共用）
   getClassChapters: (classId) => api.post('/class/chapters', { class_id: classId }),
+
+  // 学习资料（学生端）
+  getMaterials: (sectionId) =>
+    api.post('/material/list', { section_id: sectionId }),
+  viewMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/view`, { responseType: 'blob' }),
+  downloadMaterialFile: (materialId) =>
+    api.get(`/material/file/${materialId}/download`, { responseType: 'blob' }),
 
   // 查询单题详情
   getProblem: (id) => api.get('/problem/get', { params: { id } }),

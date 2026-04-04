@@ -42,7 +42,7 @@
                   <div class="stat-value">{{ formatTokenCount(usageData.summary?.total_tokens || 0) }}</div>
                   <div class="stat-label">Token消耗（近7天）</div>
                 </div>
-                <div class="stat-card danger stat-card-accent" @click="activeTab = 'audit'">
+                <div class="stat-card danger stat-card-accent" @click="handlePendingAudits">
                   <div class="stat-icon">⏰</div>
                   <div class="stat-value">{{ stats.pendingAudits }}</div>
                   <div class="stat-label">待审核申请</div>
@@ -102,59 +102,7 @@
               </div>
             </el-tab-pane>
 
-            <!-- 待审核 Tab -->
-            <el-tab-pane name="audit">
-              <template #label>
-                <el-badge :value="stats.pendingAudits" :hidden="stats.pendingAudits === 0">
-                  待审核
-                </el-badge>
-              </template>
-              
-              <div v-if="loading" class="loading-container">
-                <el-icon class="is-loading" :size="40"><Loading /></el-icon>
-              </div>
-              
-              <div v-else-if="pendingAudits.length === 0" class="empty-state">
-                <div class="empty-icon">✅</div>
-                <div class="empty-text">暂无待审核申请</div>
-                <div class="empty-hint">所有教师认证申请已处理完毕</div>
-              </div>
-              
-              <el-table v-else :data="pendingAudits" stripe style="width: 100%">
-                <el-table-column prop="employeeNumber" label="工号" width="150" />
-                <el-table-column prop="name" label="姓名" width="120" />
-                <el-table-column prop="email" label="学校邮箱" min-width="200" />
-                <el-table-column prop="department" label="院系" width="150" />
-                <el-table-column prop="submitTime" label="提交时间" width="180" />
-                <el-table-column label="状态" width="100">
-                  <template #default>
-                    <el-tag type="warning">待审核</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="120" fixed="right">
-                  <template #default="{ row }">
-                    <el-button 
-                      type="primary" 
-                      size="small" 
-                      @click="handleAudit(row)"
-                    >
-                      审核
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              
-              <el-pagination
-                v-if="pendingAudits.length > 0"
-                v-model:current-page="currentPage"
-                v-model:page-size="pageSize"
-                :total="totalAudits"
-                :page-sizes="[10, 20, 50]"
-                layout="total, sizes, prev, pager, next, jumper"
-                @size-change="loadPendingAudits"
-                @current-change="loadPendingAudits"
-              />
-            </el-tab-pane>
+
           </el-tabs>
         </div>
       </div>
@@ -192,12 +140,7 @@ const usageData = ref({
   summary: { total_input_tokens: 0, total_output_tokens: 0, total_tokens: 0, total_requests: 0 }
 });
 
-// 待审核列表
-const pendingAudits = ref([]);
 
-const currentPage = ref(1);
-const pageSize = ref(10);
-const totalAudits = ref(0);
 
 // 加载Dashboard统计数据
 const loadDashboardStats = async () => {
@@ -206,7 +149,6 @@ const loadDashboardStats = async () => {
     if (res && res.data) {
       stats.value.totalUsers = res.data.total_users || 0;
       stats.value.pendingAudits = res.data.pending_audits || 0;
-      totalAudits.value = res.data.pending_audits || 0;
     }
   } catch (error) {
     console.error('加载Dashboard统计失败:', error);
@@ -340,26 +282,9 @@ const updateChart = () => {
   chartInstance.setOption(option, true);
 };
 
-// 加载待审核列表
-const loadPendingAudits = async () => {
-  loading.value = true;
-  try {
-    // TODO: 调用真实待审核列表API
-    await new Promise(resolve => setTimeout(resolve, 300));
-  } catch (error) {
-    ElMessage.error('加载失败：' + error);
-  } finally {
-    loading.value = false;
-  }
-};
 
-// 处理审核
-const handleAudit = (row) => {
-  router.push({
-    path: '/admin/teacher-audit',
-    query: { id: row.id }
-  });
-};
+
+
 
 // 查看模型统计
 const viewModelStats = () => {
@@ -369,6 +294,17 @@ const viewModelStats = () => {
 // 查看用户
 const viewUsers = () => {
   router.push('/admin/users');
+};
+
+// 处理待审核申请点击事件
+const handlePendingAudits = () => {
+  router.push({
+    path: '/admin/users',
+    query: {
+      tab: 'teacher',
+      verificationStatus: 'pending'
+    }
+  });
 };
 
 // 查看知识库

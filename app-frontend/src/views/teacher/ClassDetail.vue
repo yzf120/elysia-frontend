@@ -171,10 +171,11 @@
                 >
                   <div class="section-left">
                     <span class="section-num">{{ sIdx + 1 }}</span>
-                    <van-tag :type="section.section_type === 1 ? 'success' : 'primary'" size="mini">
-                      {{ section.section_type === 1 ? '算法题' : '讨论' }}
+                    <van-tag :type="section.section_type === 1 ? 'success' : section.section_type === 3 ? 'warning' : 'primary'" size="mini">
+                      {{ section.section_type === 1 ? '算法题' : section.section_type === 3 ? '学习资料' : '讨论' }}
                     </van-tag>
                     <span class="section-title">{{ section.title }}</span>
+                    <span v-if="section.section_type === 3 && section.material_count" class="section-count">{{ section.material_count }}份</span>
                   </div>
                   <van-button size="mini" type="danger" plain @click="deleteSection(section)">删除</van-button>
                 </div>
@@ -258,6 +259,11 @@
           <div class="type-icon">💬</div>
           <div class="type-name">发布讨论</div>
           <div class="type-desc">发起讨论话题，学生参与讨论</div>
+        </div>
+        <div class="type-card" @click="selectSectionType(3)">
+          <div class="type-icon">📄</div>
+          <div class="type-name">发布学习资料</div>
+          <div class="type-desc">上传PDF、Word、视频或文字资料</div>
         </div>
       </div>
     </van-popup>
@@ -369,6 +375,61 @@
         <van-button plain round @click="addDiscussionVisible = false" style="flex:1">取消</van-button>
         <van-button type="primary" round :loading="sectionSubmitting" @click="submitDiscussionSection" style="flex:1">确认发布</van-button>
       </div>
+    </van-popup>
+
+    <!-- 新增学习资料小节弹出层 -->
+    <van-popup
+      v-model:show="addMaterialVisible"
+      position="bottom"
+      round
+      :style="{ maxHeight: '90vh', overflowY: 'auto', padding: '20px 16px 40px' }"
+    >
+      <div class="popup-title">发布学习资料</div>
+      <van-field v-model="materialForm.sectionTitle" label="小节标题" placeholder="小节标题（必填）" required />
+      <van-field v-model="materialForm.description" label="资料描述" type="textarea" rows="2" autosize placeholder="可选，填写资料简介" />
+
+      <van-divider>资料内容</van-divider>
+      <div v-for="(item, idx) in materialForm.items" :key="idx" class="material-item-block">
+        <div class="material-item-head">
+          <span>资料 {{ idx + 1 }}</span>
+          <van-button v-if="materialForm.items.length > 1" size="mini" type="danger" plain @click="materialForm.items.splice(idx, 1)">移除</van-button>
+        </div>
+        <van-field
+          v-model="item.typeLabel"
+          label="资料类型"
+          readonly
+          is-link
+          placeholder="请选择"
+          @click="openMaterialTypePicker(idx)"
+        />
+        <van-field v-model="item.title" label="资料标题" placeholder="请输入资料标题（必填）" required />
+        <van-field v-if="item.type === 'text'" v-model="item.textContent" label="文字内容" type="textarea" rows="4" autosize placeholder="请输入学习资料文字内容" />
+        <div v-if="item.type && item.type !== 'text'" class="file-upload-area">
+          <van-uploader
+            v-model="item.fileList"
+            :max-count="1"
+            :accept="materialAcceptMap[item.type]"
+            :max-size="200 * 1024 * 1024"
+            @oversize="showToast('文件大小超过200MB限制')"
+            :after-read="(f) => onMaterialFileRead(f, idx)"
+          />
+        </div>
+      </div>
+      <van-button plain block size="small" @click="materialForm.items.push({ type: '', typeLabel: '', title: '', file: null, fileList: [], textContent: '' })" style="margin: 8px 0 16px">+ 添加更多资料</van-button>
+
+      <div class="popup-btns">
+        <van-button plain round @click="addMaterialVisible = false" style="flex:1">取消</van-button>
+        <van-button type="primary" round :loading="sectionSubmitting" @click="submitMaterialSection" style="flex:1">确认发布</van-button>
+      </div>
+    </van-popup>
+
+    <!-- 资料类型选择器 -->
+    <van-popup v-model:show="showMaterialTypePicker" position="bottom" round>
+      <van-picker
+        :columns="materialTypeOptions"
+        @confirm="onMaterialTypeConfirm"
+        @cancel="showMaterialTypePicker = false"
+      />
     </van-popup>
   </div>
 </template>
@@ -486,6 +547,108 @@ const searchProblemLibrary = async () => {
 // 讨论小节
 const addDiscussionVisible = ref(false);
 const discussionForm = ref({ sectionTitle: '', title: '', content: '' });
+
+// ---- 学习资料 ----
+const addMaterialVisible = ref(false);
+const materialForm = ref({
+  sectionTitle: '',
+  description: '',
+  items: [{ type: '', typeLabel: '', title: '', file: null, fileList: [], textContent: '' }]
+});
+const showMaterialTypePicker = ref(false);
+const currentMaterialItemIdx = ref(0);
+const materialTypeOptions = [
+  { text: 'PDF文档', value: 'pdf' },
+  { text: 'Word文档', value: 'word' },
+  { text: '视频', value: 'video' },
+  { text: '文字内容', value: 'text' }
+];
+const materialAcceptMap = {
+  pdf: '.pdf',
+  word: '.doc,.docx',
+  video: '.mp4,.avi,.mkv,.mov,.webm'
+};
+
+const openMaterialTypePicker = (idx) => {
+  currentMaterialItemIdx.value = idx;
+  showMaterialTypePicker.value = true;
+};
+
+const onMaterialTypeConfirm = ({ selectedOptions }) => {
+  const opt = selectedOptions[0];
+  const idx = currentMaterialItemIdx.value;
+  materialForm.value.items[idx].type = opt.value;
+  materialForm.value.items[idx].typeLabel = opt.text;
+  materialForm.value.items[idx].file = null;
+  materialForm.value.items[idx].fileList = [];
+  showMaterialTypePicker.value = false;
+};
+
+const onMaterialFileRead = (fileInfo, idx) => {
+  materialForm.value.items[idx].file = fileInfo.file;
+};
+
+const submitMaterialSection = async () => {
+  if (!materialForm.value.sectionTitle.trim()) {
+    showToast('请输入小节标题');
+    return;
+  }
+  for (const item of materialForm.value.items) {
+    if (!item.type) { showToast('请选择资料类型'); return; }
+    if (!item.title.trim()) { showToast('请输入资料标题'); return; }
+    if (item.type !== 'text' && !item.file) { showToast(`资料「${item.title}」需要上传文件`); return; }
+  }
+
+  sectionSubmitting.value = true;
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const teacherId = userInfo.teacher_id || userInfo.id || '';
+    const chapterId = currentChapter.value.chapter_id;
+
+    // 创建 section_type=3 的小节
+    await teacherAPI.createSection(teacherId, chapterId, {
+      title: materialForm.value.sectionTitle,
+      description: materialForm.value.description,
+      section_type: 3
+    });
+
+    // 获取新创建的小节ID
+    const chapRes = await teacherAPI.getClassChapters(route.params.classId);
+    const chaps = chapRes.data?.chapters || chapRes.chapters || [];
+    const curChap = chaps.find(c => c.chapter_id === chapterId);
+    const newSection = curChap?.sections?.find(s => s.title === materialForm.value.sectionTitle && s.section_type === 3);
+    if (!newSection) {
+      showToast({ type: 'fail', message: '创建成功，但未找到小节ID' });
+      addMaterialVisible.value = false;
+      loadChapters();
+      return;
+    }
+
+    // 逐条上传资料
+    for (const item of materialForm.value.items) {
+      const formData = new FormData();
+      formData.append('teacher_id', teacherId);
+      formData.append('section_id', newSection.section_id);
+      formData.append('title', item.title);
+      formData.append('material_type', item.type);
+      if (item.type === 'text') {
+        formData.append('description', item.textContent || '');
+      } else {
+        formData.append('description', '');
+        formData.append('file', item.file);
+      }
+      await teacherAPI.uploadMaterial(formData);
+    }
+
+    showToast({ type: 'success', message: '学习资料发布成功' });
+    addMaterialVisible.value = false;
+    loadChapters();
+  } catch (error) {
+    showToast({ type: 'fail', message: '发布失败' });
+  } finally {
+    sectionSubmitting.value = false;
+  }
+};
 
 // ---- 工具函数 ----
 const getStatusLabel = (status) => {
@@ -741,6 +904,13 @@ const selectSectionType = (type) => {
     problemLibrarySearch.value = '';
     searchProblemLibrary();
     addProblemVisible.value = true;
+  } else if (type === 3) {
+    materialForm.value = {
+      sectionTitle: '',
+      description: '',
+      items: [{ type: '', typeLabel: '', title: '', file: null, fileList: [], textContent: '' }]
+    };
+    addMaterialVisible.value = true;
   } else {
     discussionForm.value = { sectionTitle: '', title: '', content: '' };
     addDiscussionVisible.value = true;

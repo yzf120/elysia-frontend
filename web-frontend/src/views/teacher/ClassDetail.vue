@@ -205,21 +205,153 @@
                 >
                   <div class="section-left">
                     <span class="section-index">{{ sIdx + 1 }}</span>
-                    <el-tag :type="section.section_type === 1 ? 'success' : 'primary'" size="small">
-                      {{ section.section_type === 1 ? '算法题' : '讨论' }}
+                    <el-tag :type="section.section_type === 1 ? 'success' : section.section_type === 3 ? 'warning' : 'primary'" size="small">
+                      {{ section.section_type === 1 ? '算法题' : section.section_type === 3 ? '学习资料' : '讨论' }}
                     </el-tag>
                     <span class="section-title">{{ section.title }}</span>
-                    <span v-if="section.description" class="section-desc">{{ section.description }}</span>
+                    <span v-if="section.section_type === 3 && section.material_count" class="section-desc">{{ section.material_count }}份资料</span>
+                    <span v-else-if="section.description" class="section-desc">{{ section.description }}</span>
                   </div>
-                  <el-button type="danger" size="small" link @click="deleteSection(section)">
-                    <el-icon><Delete /></el-icon>
-                  </el-button>
+                  <div class="section-actions">
+                    <el-button type="primary" size="small" link @click="viewSectionDetail(section)">
+                      <el-icon><View /></el-icon>
+                    </el-button>
+                    <el-button type="danger" size="small" link @click="deleteSection(section)">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                  </div>
                 </div>
               </div>
               <div v-else class="section-empty">暂无小节</div>
             </el-card>
           </div>
         </el-tab-pane>
+
+        <!-- 小节详情弹窗（教师端查看） -->
+        <el-dialog
+          v-model="sectionDetailVisible"
+          :title="currentViewSection ? currentViewSection.title : '小节详情'"
+          width="700px"
+          :destroy-on-close="true"
+        >
+          <template v-if="currentViewSection">
+            <!-- 算法题 -->
+            <div v-if="currentViewSection.section_type === 1" class="section-detail-body">
+              <div v-if="problemDetailLoading" style="text-align:center;padding:30px 0">
+                <el-icon class="is-loading" :size="20"><Loading /></el-icon> 加载中...
+              </div>
+              <template v-else-if="currentProblemDetail">
+                <div class="detail-row">
+                  <el-tag type="success" size="small">算法题</el-tag>
+                  <el-tag :type="difficultyTagType(currentProblemDetail.difficulty)" size="small" style="margin-left:6px">{{ currentProblemDetail.difficulty }}</el-tag>
+                </div>
+                <div v-if="currentProblemDetail.tags" class="detail-tags" style="margin-top:8px">
+                  <el-tag v-for="tag in currentProblemDetail.tags.split(',').filter(Boolean)" :key="tag" plain type="primary" size="small" style="margin-right:6px">{{ tag.trim() }}</el-tag>
+                </div>
+                <div class="detail-desc" style="margin-top:12px">
+                  <div style="font-weight:600;margin-bottom:6px">题目描述</div>
+                  <div style="white-space:pre-line;line-height:1.8">{{ currentProblemDetail.description }}</div>
+                </div>
+                <div v-if="currentProblemDetail.input_sample" class="detail-desc" style="margin-top:12px">
+                  <div style="font-weight:600;margin-bottom:6px">输入样例</div>
+                  <pre style="background:#f5f7fa;padding:10px;border-radius:6px;font-size:13px;overflow-x:auto">{{ currentProblemDetail.input_sample }}</pre>
+                </div>
+                <div v-if="currentProblemDetail.output_sample" class="detail-desc" style="margin-top:12px">
+                  <div style="font-weight:600;margin-bottom:6px">输出样例</div>
+                  <pre style="background:#f5f7fa;padding:10px;border-radius:6px;font-size:13px;overflow-x:auto">{{ currentProblemDetail.output_sample }}</pre>
+                </div>
+                <div v-if="currentProblemDetail.hint" class="detail-desc" style="margin-top:12px">
+                  <div style="font-weight:600;margin-bottom:6px">提示</div>
+                  <div style="white-space:pre-line;color:#909399">{{ currentProblemDetail.hint }}</div>
+                </div>
+                <div v-if="currentProblemDetail.constraints" class="detail-desc" style="margin-top:12px">
+                  <div style="font-weight:600;margin-bottom:6px">数据范围</div>
+                  <div style="white-space:pre-line;color:#909399">{{ currentProblemDetail.constraints }}</div>
+                </div>
+              </template>
+              <div v-else style="text-align:center;padding:20px 0;color:#909399">题目信息加载失败</div>
+            </div>
+
+            <!-- 讨论 -->
+            <div v-else-if="currentViewSection.section_type === 2" class="section-detail-body">
+              <div class="detail-row">
+                <el-tag type="primary" size="small">讨论话题</el-tag>
+              </div>
+              <div class="detail-field">
+                <span class="field-label">话题标题：</span>
+                <span>{{ currentViewSection.discussion_title || currentViewSection.title }}</span>
+              </div>
+              <div v-if="currentViewSection.discussion_content" class="detail-desc">{{ currentViewSection.discussion_content }}</div>
+            </div>
+
+            <!-- 学习资料 -->
+            <div v-else-if="currentViewSection.section_type === 3" class="section-detail-body">
+              <div class="detail-row" style="margin-bottom:12px">
+                <el-tag type="warning" size="small">学习资料</el-tag>
+                <span v-if="currentViewSection.description" style="margin-left:8px;color:#909399">{{ currentViewSection.description }}</span>
+              </div>
+
+              <div v-if="teacherMaterialLoading" style="text-align:center;padding:30px 0">
+                <el-icon class="is-loading" :size="20"><Loading /></el-icon> 加载中...
+              </div>
+              <div v-else-if="teacherMaterialList.length === 0" style="text-align:center;padding:20px 0;color:#909399">
+                暂无资料
+              </div>
+              <div v-else class="teacher-material-list">
+                <div v-for="mat in teacherMaterialList" :key="mat.material_id" class="teacher-mat-card">
+                  <div class="teacher-mat-top">
+                    <el-tag :type="materialTagType(mat.material_type)" size="small">{{ materialTypeLabel(mat.material_type) }}</el-tag>
+                    <span class="teacher-mat-title">{{ mat.title }}</span>
+                    <span v-if="mat.file_name && mat.material_type !== 'text'" class="teacher-mat-file">{{ mat.file_name }} <span style="color:#909399">({{ formatFileSize(mat.file_size) }})</span></span>
+                  </div>
+                  <div v-if="mat.material_type === 'text' && mat.description" class="teacher-mat-text">{{ mat.description }}</div>
+                  <div class="teacher-mat-actions">
+                    <el-button v-if="mat.material_type === 'pdf' || mat.material_type === 'video'" type="primary" size="small" link @click="teacherViewMaterial(mat)">
+                      <el-icon><View /></el-icon> 在线查看
+                    </el-button>
+                    <el-button v-if="mat.material_type === 'pdf' || mat.material_type === 'word'" type="success" size="small" link @click="teacherDownloadMaterial(mat)">
+                      <el-icon><Download /></el-icon> 下载
+                    </el-button>
+                    <el-button type="danger" size="small" link @click="teacherDeleteMaterial(mat)">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 追加上传 -->
+              <el-divider content-position="left">追加上传资料</el-divider>
+              <div class="append-upload-row">
+                <el-select v-model="appendMaterial.type" placeholder="类型" style="width:120px" size="small">
+                  <el-option label="PDF" value="pdf" />
+                  <el-option label="Word" value="word" />
+                  <el-option label="视频" value="video" />
+                  <el-option label="文字" value="text" />
+                </el-select>
+                <el-input v-model="appendMaterial.title" placeholder="资料标题" size="small" style="width:160px;margin:0 8px" />
+                <el-upload
+                  v-if="appendMaterial.type && appendMaterial.type !== 'text'"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="(f) => appendMaterial.file = f.raw"
+                  :accept="materialAcceptMap[appendMaterial.type]"
+                  style="display:inline-block"
+                >
+                  <el-button size="small" plain>选择文件</el-button>
+                </el-upload>
+                <el-input v-if="appendMaterial.type === 'text'" v-model="appendMaterial.textContent" placeholder="文字内容" size="small" type="textarea" :rows="2" style="width:200px;margin-left:8px" />
+                <el-button type="primary" size="small" :loading="appendUploading" @click="doAppendUpload" style="margin-left:8px">上传</el-button>
+              </div>
+            </div>
+          </template>
+
+          <template #footer>
+            <el-button v-if="currentViewSection && currentViewSection.section_type === 1 && currentViewSection.problem_id" type="primary" @click="goToProblemCode(currentViewSection.problem_id)">
+              <el-icon><Monitor /></el-icon> 去编程调试
+            </el-button>
+            <el-button @click="sectionDetailVisible = false">关闭</el-button>
+          </template>
+        </el-dialog>
 
         <!-- 新增章节对话框 -->
         <el-dialog v-model="addChapterVisible" title="新增章节" width="480px" :close-on-click-modal="false">
@@ -252,6 +384,11 @@
                 <el-icon size="32" color="#409eff"><ChatDotRound /></el-icon>
                 <div class="type-name">发布讨论</div>
                 <div class="type-desc">发起一个讨论话题，学生可参与讨论</div>
+              </el-card>
+              <el-card class="type-card" shadow="hover" @click="sectionType = 3">
+                <el-icon size="32" color="#e6a23c"><Document /></el-icon>
+                <div class="type-name">发布学习资料</div>
+                <div class="type-desc">上传PDF、Word、视频或文字资料供学生学习</div>
               </el-card>
             </div>
           </div>
@@ -363,6 +500,68 @@
             <el-form-item label="话题描述">
               <el-input v-model="discussionForm.content" type="textarea" :rows="5" placeholder="请输入讨论话题描述或背景" />
             </el-form-item>
+          </el-form>
+
+          <!-- 学习资料表单 -->
+          <el-form v-if="sectionType === 3" :model="materialForm" label-width="100px" ref="materialFormRef">
+            <el-form-item label="小节标题" prop="sectionTitle" :rules="[{ required: true, message: '请输入小节标题' }]">
+              <el-input v-model="materialForm.sectionTitle" placeholder="小节标题（显示在章节列表中）" clearable />
+            </el-form-item>
+            <el-form-item label="资料描述">
+              <el-input v-model="materialForm.description" type="textarea" :rows="3" placeholder="可选，填写资料简介或说明" />
+            </el-form-item>
+
+            <!-- 资料列表：支持多条 -->
+            <el-divider content-position="left">学习资料内容</el-divider>
+            <div v-for="(item, idx) in materialForm.items" :key="idx" class="material-item-card">
+              <div class="material-item-header">
+                <span>资料 {{ idx + 1 }}</span>
+                <el-button type="danger" size="small" link @click="removeMaterialItem(idx)" v-if="materialForm.items.length > 1">
+                  <el-icon><Delete /></el-icon> 移除
+                </el-button>
+              </div>
+              <el-form-item label="资料类型" :prop="'items.' + idx + '.type'" :rules="[{ required: true, message: '请选择资料类型' }]">
+                <el-select v-model="item.type" placeholder="请选择资料类型" style="width: 100%" @change="item.file = null">
+                  <el-option label="PDF文档" value="pdf" />
+                  <el-option label="Word文档" value="word" />
+                  <el-option label="视频" value="video" />
+                  <el-option label="文字内容" value="text" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="资料标题" :prop="'items.' + idx + '.title'" :rules="[{ required: true, message: '请输入资料标题' }]">
+                <el-input v-model="item.title" placeholder="请输入资料标题" clearable />
+              </el-form-item>
+
+              <!-- 文件上传（非 text 类型） -->
+              <el-form-item v-if="item.type && item.type !== 'text'" label="上传文件">
+                <el-upload
+                  :auto-upload="false"
+                  :on-change="(f) => handleMaterialFileChange(f, idx)"
+                  :limit="1"
+                  :accept="materialAcceptMap[item.type]"
+                  :file-list="item.fileList || []"
+                  @remove="item.file = null; item.fileList = []"
+                >
+                  <el-button type="primary" plain size="small">
+                    <el-icon><UploadFilled /></el-icon> 选择文件
+                  </el-button>
+                  <template #tip>
+                    <div class="el-upload__tip">
+                      {{ materialTipMap[item.type] || '请选择文件' }}
+                    </div>
+                  </template>
+                </el-upload>
+              </el-form-item>
+
+              <!-- 文字内容（text 类型） -->
+              <el-form-item v-if="item.type === 'text'" label="文字内容">
+                <el-input v-model="item.textContent" type="textarea" :rows="6" placeholder="请输入学习资料文字内容" />
+              </el-form-item>
+            </div>
+
+            <el-button type="primary" plain size="small" @click="addMaterialItem" style="margin-top: 8px">
+              <el-icon><Plus /></el-icon> 添加更多资料
+            </el-button>
           </el-form>
 
           <template #footer>
@@ -503,6 +702,194 @@ const discussionForm = ref({
   title: '',
   content: ''
 });
+
+// 学习资料表单
+const materialFormRef = ref(null);
+const materialForm = ref({
+  sectionTitle: '',
+  description: '',
+  items: [{ type: '', title: '', file: null, fileList: [], textContent: '' }]
+});
+
+// 资料文件类型映射
+const materialAcceptMap = {
+  pdf: '.pdf',
+  word: '.doc,.docx',
+  video: '.mp4,.avi,.mkv,.mov,.webm'
+};
+const materialTipMap = {
+  pdf: '支持 PDF 格式，最大200MB',
+  word: '支持 DOC/DOCX 格式，最大200MB',
+  video: '支持 MP4/AVI/MKV/MOV/WEBM 格式，最大200MB'
+};
+
+// 添加资料项
+const addMaterialItem = () => {
+  materialForm.value.items.push({ type: '', title: '', file: null, fileList: [], textContent: '' });
+};
+
+// 移除资料项
+const removeMaterialItem = (idx) => {
+  materialForm.value.items.splice(idx, 1);
+};
+
+// 处理资料文件选择
+const handleMaterialFileChange = (fileInfo, idx) => {
+  materialForm.value.items[idx].file = fileInfo.raw;
+  materialForm.value.items[idx].fileList = [fileInfo];
+};
+
+// ==================== 小节详情查看（教师端） ====================
+const sectionDetailVisible = ref(false);
+const currentViewSection = ref(null);
+const teacherMaterialList = ref([]);
+const teacherMaterialLoading = ref(false);
+const appendMaterial = ref({ type: '', title: '', file: null, textContent: '' });
+const appendUploading = ref(false);
+
+// 辅助函数
+const materialTypeLabel = (type) => ({
+  pdf: 'PDF文档', word: 'Word文档', video: '视频', text: '文字内容'
+}[type] || type);
+
+const materialTagType = (type) => ({
+  pdf: 'danger', word: 'primary', video: 'warning', text: 'info'
+}[type] || 'info');
+
+const formatFileSize = (size) => {
+  if (!size) return '';
+  if (size < 1024) return size + 'B';
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + 'KB';
+  return (size / (1024 * 1024)).toFixed(1) + 'MB';
+};
+
+const problemDetailLoading = ref(false);
+const currentProblemDetail = ref(null);
+
+// 打开小节详情弹窗
+const viewSectionDetail = async (section) => {
+  currentViewSection.value = section;
+  currentProblemDetail.value = null;
+  sectionDetailVisible.value = true;
+  if (section.section_type === 1 && section.problem_id) {
+    problemDetailLoading.value = true;
+    try {
+      const res = await problemAPI.getProblem(section.problem_id);
+      currentProblemDetail.value = res?.problem || null;
+    } catch (e) {
+      currentProblemDetail.value = null;
+    } finally {
+      problemDetailLoading.value = false;
+    }
+  } else if (section.section_type === 3) {
+    await loadTeacherMaterials(section.section_id);
+  }
+};
+
+// 加载教师端资料列表
+const loadTeacherMaterials = async (sectionId) => {
+  teacherMaterialLoading.value = true;
+  try {
+    const res = await teacherAPI.getMaterials(sectionId);
+    teacherMaterialList.value = res.data?.materials || res.materials || [];
+  } catch (e) {
+    teacherMaterialList.value = [];
+  } finally {
+    teacherMaterialLoading.value = false;
+  }
+};
+
+// 教师查看资料
+const teacherViewMaterial = async (mat) => {
+  if (mat.material_type === 'word') {
+    ElMessage.info('Word 文档不支持在线预览，已开始下载');
+    teacherDownloadMaterial(mat);
+    return;
+  }
+  try {
+    const token = localStorage.getItem('token');
+    const url = `http://localhost:8001/api/material/file/${mat.material_id}/view`;
+    const resp = await fetch(url, { headers: { Authorization: token ? `Bearer ${token}` : '' } });
+    if (!resp.ok) { ElMessage.error('查看失败'); return; }
+    const blob = await resp.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 120 * 1000);
+  } catch (e) {
+    ElMessage.error('查看资料失败');
+  }
+};
+
+// 教师下载资料
+const teacherDownloadMaterial = async (mat) => {
+  try {
+    const token = localStorage.getItem('token');
+    const url = `http://localhost:8001/api/material/file/${mat.material_id}/download`;
+    const resp = await fetch(url, { headers: { Authorization: token ? `Bearer ${token}` : '' } });
+    if (!resp.ok) { ElMessage.error('下载失败'); return; }
+    const blob = await resp.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = mat.file_name || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+  } catch (e) {
+    ElMessage.error('下载资料失败');
+  }
+};
+
+// 教师删除单条资料
+const teacherDeleteMaterial = async (mat) => {
+  try {
+    await ElMessageBox.confirm(`确定删除资料「${mat.title}」？`, '确认删除', {
+      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+    });
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const tid = userInfo.teacher_id || userInfo.id || '';
+    await teacherAPI.deleteMaterial(tid, mat.material_id);
+    ElMessage.success('删除成功');
+    loadTeacherMaterials(currentViewSection.value.section_id);
+    loadChapters();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除失败');
+  }
+};
+
+// 教师追加上传资料
+const doAppendUpload = async () => {
+  if (!appendMaterial.value.type) { ElMessage.warning('请选择资料类型'); return; }
+  if (!appendMaterial.value.title.trim()) { ElMessage.warning('请输入资料标题'); return; }
+  if (appendMaterial.value.type !== 'text' && !appendMaterial.value.file) { ElMessage.warning('请选择文件'); return; }
+
+  appendUploading.value = true;
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const tid = userInfo.teacher_id || userInfo.id || '';
+    const formData = new FormData();
+    formData.append('teacher_id', tid);
+    formData.append('section_id', currentViewSection.value.section_id);
+    formData.append('title', appendMaterial.value.title);
+    formData.append('material_type', appendMaterial.value.type);
+    if (appendMaterial.value.type === 'text') {
+      formData.append('description', appendMaterial.value.textContent || '');
+    } else {
+      formData.append('description', '');
+      formData.append('file', appendMaterial.value.file);
+    }
+    await teacherAPI.uploadMaterial(formData);
+    ElMessage.success('上传成功');
+    appendMaterial.value = { type: '', title: '', file: null, textContent: '' };
+    loadTeacherMaterials(currentViewSection.value.section_id);
+    loadChapters();
+  } catch (e) {
+    ElMessage.error('上传失败');
+  } finally {
+    appendUploading.value = false;
+  }
+};
 
 // 格式化日期
 const formatDate = (dateStr) => {
@@ -733,6 +1120,7 @@ const openAddSectionDialog = (chapter) => {
   problemLibrarySearch.value = '';
   problemLibraryList.value = [];
   discussionForm.value = { sectionTitle: '', title: '', content: '' };
+  materialForm.value = { sectionTitle: '', description: '', items: [{ type: '', title: '', file: null, fileList: [], textContent: '' }] };
   addSectionVisible.value = true;
 };
 
@@ -807,6 +1195,57 @@ const submitAddSection = async () => {
         discussion_content: discussionForm.value.content
       });
       ElMessage.success('讨论小节创建成功');
+    } else if (sectionType.value === 3) {
+      // 学习资料
+      if (!materialFormRef.value) return;
+      if (!materialForm.value.sectionTitle.trim()) {
+        ElMessage.warning('请输入小节标题');
+        sectionSubmitting.value = false;
+        return;
+      }
+      // 校验每条资料
+      for (const item of materialForm.value.items) {
+        if (!item.type) { ElMessage.warning('请选择资料类型'); sectionSubmitting.value = false; return; }
+        if (!item.title.trim()) { ElMessage.warning('请输入资料标题'); sectionSubmitting.value = false; return; }
+        if (item.type !== 'text' && !item.file) { ElMessage.warning(`资料「${item.title}」需要上传文件`); sectionSubmitting.value = false; return; }
+      }
+
+      // 先创建 section_type=3 的小节
+      await teacherAPI.createSection(teacherId, chapterId, {
+        title: materialForm.value.sectionTitle,
+        description: materialForm.value.description,
+        section_type: 3
+      });
+      // 获取最新创建的小节ID
+      const chapRes = await teacherAPI.getClassChapters(route.params.id || route.params.classId);
+      const chaps = chapRes.data?.chapters || chapRes.chapters || [];
+      const curChap = chaps.find(c => c.chapter_id === chapterId);
+      const newSection = curChap?.sections?.find(s => s.title === materialForm.value.sectionTitle && s.section_type === 3);
+      if (!newSection) {
+        ElMessage.error('小节创建成功，但未找到新小节ID，请手动上传资料');
+        sectionSubmitting.value = false;
+        addSectionVisible.value = false;
+        loadChapters();
+        return;
+      }
+      const newSectionId = newSection.section_id;
+
+      // 逐条上传学习资料
+      for (const item of materialForm.value.items) {
+        const formData = new FormData();
+        formData.append('teacher_id', teacherId);
+        formData.append('section_id', newSectionId);
+        formData.append('title', item.title);
+        formData.append('material_type', item.type);
+        if (item.type === 'text') {
+          formData.append('description', item.textContent || '');
+        } else {
+          formData.append('description', '');
+          formData.append('file', item.file);
+        }
+        await teacherAPI.uploadMaterial(formData);
+      }
+      ElMessage.success('学习资料小节创建成功');
     }
     addSectionVisible.value = false;
     sectionType.value = null;
@@ -841,12 +1280,27 @@ const goBack = () => {
   router.push({ name: 'TeacherDashboard' });
 };
 
+// 跳转到教师编程调试页面
+const goToProblemCode = (problemId) => {
+  const classId = route.params.id || route.params.classId;
+  sectionDetailVisible.value = false;
+  router.push({
+    name: 'TeacherProblemCode',
+    params: { problemId },
+    query: { from: 'chapters', classId }
+  });
+};
+
 // 页面加载
 onMounted(() => {
   loadClassInfo();
   loadMembers();
   loadAnnouncements();
   loadChapters();
+  // 如果是从编程页返回，自动切换到章节管理 Tab
+  if (route.query.tab === 'chapters') {
+    activeTab.value = 'chapters';
+  }
 });
 </script>
 
@@ -1169,6 +1623,106 @@ onMounted(() => {
       font-weight: 600;
       color: var(--teacher-text-secondary);
     }
+  }
+
+  // 学习资料项
+  .material-item-card {
+    background: var(--teacher-bg);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--teacher-border);
+
+    .material-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--teacher-text-primary);
+    }
+  }
+
+  // 小节操作按钮
+  .section-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  // 小节详情弹窗
+  .section-detail-body {
+    .detail-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .detail-field {
+      margin: 8px 0;
+      font-size: 14px;
+      .field-label { color: var(--teacher-text-secondary); font-weight: 500; }
+    }
+    .detail-desc {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--teacher-text-primary);
+      line-height: 1.7;
+      white-space: pre-line;
+      background: var(--teacher-bg);
+      padding: 12px;
+      border-radius: 8px;
+    }
+  }
+
+  // 教师端资料列表
+  .teacher-material-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .teacher-mat-card {
+    border: 1px solid var(--teacher-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .teacher-mat-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .teacher-mat-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--teacher-text-primary);
+  }
+  .teacher-mat-file {
+    font-size: 13px;
+    color: var(--teacher-text-secondary);
+  }
+  .teacher-mat-text {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--teacher-text-primary);
+    line-height: 1.7;
+    white-space: pre-line;
+    background: var(--teacher-bg);
+    padding: 10px;
+    border-radius: 6px;
+  }
+  .teacher-mat-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+  }
+
+  // 追加上传
+  .append-upload-row {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   // 题目预览

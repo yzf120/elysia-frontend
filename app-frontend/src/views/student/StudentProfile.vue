@@ -53,6 +53,43 @@
       </div>
     </div>
 
+    <!-- 做题画像卡片 -->
+    <div class="section-card" v-if="codingStats.hasProfile">
+      <div class="section-header">
+        <div class="section-icon icon-coding">
+          <van-icon name="bar-chart-o" size="18" />
+        </div>
+        <span class="section-title">做题画像</span>
+        <van-tag :type="levelTagType" size="medium" round style="margin-left: auto;">{{ levelLabel }}</van-tag>
+      </div>
+      <div class="coding-stats-grid">
+        <div class="coding-stat-item">
+          <span class="coding-stat-value">{{ codingStats.solvedProblemCount }}</span>
+          <span class="coding-stat-label">已解决题目</span>
+        </div>
+        <div class="coding-stat-item">
+          <span class="coding-stat-value">{{ (codingStats.acceptRate * 100).toFixed(1) }}%</span>
+          <span class="coding-stat-label">通过率</span>
+        </div>
+        <div class="coding-stat-item">
+          <span class="coding-stat-value">{{ codingStats.totalSubmissions }}</span>
+          <span class="coding-stat-label">总提交次数</span>
+        </div>
+        <div class="coding-stat-item">
+          <span class="coding-stat-value">{{ codingStats.preferredLanguage || '-' }}</span>
+          <span class="coding-stat-label">最常用语言</span>
+        </div>
+      </div>
+      <div class="lang-stats-row" v-if="codingStats.languageStats && Object.keys(codingStats.languageStats).length > 0">
+        <span class="lang-stats-title">语言使用统计</span>
+        <div class="lang-tags">
+          <van-tag v-for="(count, lang) in codingStats.languageStats" :key="lang" plain type="primary" size="medium" round>
+            {{ lang }}: {{ count }}次
+          </van-tag>
+        </div>
+      </div>
+    </div>
+
     <!-- 基本信息卡片 -->
     <div class="section-card">
       <div class="section-header">
@@ -186,6 +223,32 @@ const stats = ref({
   aiSessions: 0
 })
 
+// 做题画像数据
+const codingStats = ref({
+  hasProfile: false,
+  totalSubmissions: 0,
+  acceptedCount: 0,
+  acceptRate: 0,
+  solvedProblemCount: 0,
+  attemptedProblemCount: 0,
+  preferredLanguage: '',
+  languageStats: {},
+  commonErrors: [],
+  difficultyLevel: 'beginner',
+  avgTimeCost: 0,
+  lastSubmitTime: null
+})
+
+// 能力等级标签
+const levelLabel = computed(() => {
+  const map = { beginner: '初学者', intermediate: '进阶者', advanced: '高手' }
+  return map[codingStats.value.difficultyLevel] || '初学者'
+})
+const levelTagType = computed(() => {
+  const map = { beginner: 'default', intermediate: 'warning', advanced: 'success' }
+  return map[codingStats.value.difficultyLevel] || 'default'
+})
+
 // 表单数据
 const formData = ref({
   name: '',
@@ -261,6 +324,31 @@ const loadStudyStats = async () => {
     }
   } catch (error) {
     console.error('加载学习统计失败:', error)
+  }
+}
+
+// 加载做题画像
+const loadCodingStats = async () => {
+  try {
+    const res = await studentAPI.getCodingStats()
+    if (res && res.has_profile) {
+      codingStats.value = {
+        hasProfile: true,
+        totalSubmissions: res.total_submissions || 0,
+        acceptedCount: res.accepted_count || 0,
+        acceptRate: res.accept_rate || 0,
+        solvedProblemCount: res.solved_problem_count || 0,
+        attemptedProblemCount: res.attempted_problem_count || 0,
+        preferredLanguage: res.preferred_language || '',
+        languageStats: res.language_stats || {},
+        commonErrors: res.common_errors || [],
+        difficultyLevel: res.difficulty_level || 'beginner',
+        avgTimeCost: res.avg_time_cost || 0,
+        lastSubmitTime: res.last_submit_time
+      }
+    }
+  } catch (error) {
+    console.error('加载做题画像失败:', error)
   }
 }
 
@@ -381,6 +469,7 @@ const goBack = () => {
 onMounted(() => {
   loadUserInfo()
   loadStudyStats()
+  loadCodingStats()
 })
 </script>
 
@@ -591,6 +680,10 @@ onMounted(() => {
   background: linear-gradient(135deg, #f59e0b, #f97316);
 }
 
+.icon-coding {
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 700;
@@ -651,6 +744,54 @@ onMounted(() => {
   font-size: 15px;
   border-color: #fca5a5 !important;
   color: #ef4444 !important;
+}
+
+/* 做题画像网格 */
+.coding-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.coding-stat-item {
+  text-align: center;
+  padding: 12px 8px;
+  background: #f9fafb;
+  border-radius: 12px;
+}
+
+.coding-stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+}
+
+.coding-stat-label {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.lang-stats-row {
+  padding: 0 20px 16px;
+}
+
+.lang-stats-title {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.lang-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .page-bottom-space {

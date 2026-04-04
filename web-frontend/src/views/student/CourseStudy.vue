@@ -162,13 +162,16 @@
               >
                 <div class="problem-left">
                   <el-tag
-                    :type="section.section_type === 1 ? 'primary' : 'warning'"
+                    :type="section.section_type === 1 ? 'primary' : section.section_type === 3 ? 'success' : 'warning'"
                     size="small"
                     class="diff-tag"
-                  >{{ section.section_type === 1 ? '算法题' : '讨论' }}</el-tag>
+                  >{{ section.section_type === 1 ? '算法题' : section.section_type === 3 ? '学习资料' : '讨论' }}</el-tag>
                   <div class="problem-info">
                     <div class="problem-title">{{ section.title }}</div>
-                    <div v-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
+                    <div v-if="section.section_type === 3 && section.material_count" class="problem-tags" style="color:#67c23a;font-size:12px;margin-top:2px">
+                      {{ section.material_count }}份资料
+                    </div>
+                    <div v-else-if="section.description" class="problem-tags" style="color:#909399;font-size:12px;margin-top:2px">
                       {{ section.description }}
                     </div>
                   </div>
@@ -210,6 +213,50 @@
       </div>
       <template #footer>
         <el-button @click="showDiscussDetail = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== 学习资料弹窗 ===== -->
+    <el-dialog
+      v-model="showMaterialDetail"
+      :title="currentMaterialSection ? currentMaterialSection.title : '学习资料'"
+      width="700px"
+      :destroy-on-close="true"
+    >
+      <div v-if="materialLoading" style="text-align:center;padding:40px 0">
+        <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+        <div style="margin-top:8px;color:#909399;font-size:14px;">加载中...</div>
+      </div>
+      <div v-else-if="materialList.length === 0" style="text-align:center;padding:40px 0">
+        <el-empty description="暂无学习资料" />
+      </div>
+      <div v-else class="material-list">
+        <div v-for="mat in materialList" :key="mat.material_id" class="material-card">
+          <div class="material-card-header">
+            <div class="material-card-left">
+              <el-tag :type="materialTagType(mat.material_type)" size="small">{{ materialTypeLabel(mat.material_type) }}</el-tag>
+              <span class="material-card-title">{{ mat.title }}</span>
+            </div>
+            <div class="material-card-actions">
+              <el-button v-if="mat.material_type === 'pdf' || mat.material_type === 'video'" type="primary" size="small" link @click="viewMaterialOnline(mat)">
+                <el-icon><View /></el-icon> 在线查看
+              </el-button>
+              <el-button v-if="mat.material_type === 'pdf' || mat.material_type === 'word'" type="success" size="small" link @click="downloadMaterialAttachment(mat)">
+                <el-icon><Download /></el-icon> 下载
+              </el-button>
+            </div>
+          </div>
+          <div v-if="mat.material_type === 'text' && mat.description" class="material-text-content">
+            {{ mat.description }}
+          </div>
+          <div v-if="mat.file_name && mat.material_type !== 'text'" class="material-file-info">
+            <span>{{ mat.file_name }}</span>
+            <span v-if="mat.file_size" style="margin-left:12px;color:#909399">{{ formatFileSize(mat.file_size) }}</span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showMaterialDetail = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -545,6 +592,12 @@ const viewSection = async (section) => {
     } catch (e) {
       ElMessage.error('题目信息获取失败')
     }
+  } else if (section.section_type === 3) {
+    // 学习资料
+    currentMaterialSection.value = section
+    materialList.value = []
+    showMaterialDetail.value = true
+    loadMaterialList(section.section_id)
   } else {
     // 讨论
     currentDiscussion.value = {
@@ -553,6 +606,76 @@ const viewSection = async (section) => {
       create_time: section.create_time
     }
     showDiscussDetail.value = true
+  }
+}
+
+// ==================== 学习资料 ====================
+const showMaterialDetail = ref(false)
+const currentMaterialSection = ref(null)
+const materialList = ref([])
+const materialLoading = ref(false)
+
+const loadMaterialList = async (sectionId) => {
+  materialLoading.value = true
+  try {
+    const res = await studentAPI.getMaterials(sectionId)
+    materialList.value = res.data?.materials || res.materials || []
+  } catch (e) {
+    console.error('加载学习资料失败:', e)
+    materialList.value = []
+  } finally {
+    materialLoading.value = false
+  }
+}
+
+const viewMaterialOnline = async (material) => {
+  if (material.material_type === 'word') {
+    // Word 浏览器无法直接预览，改为下载后用本地 Office 打开
+    ElMessage.info('Word 文档不支持在线预览，已开始下载，请用 Office 打开查看')
+    downloadMaterialAttachment(material)
+    return
+  }
+  try {
+    const apiBaseURL = 'http://localhost:8001/api'
+    const token = localStorage.getItem('token')
+    const url = `${apiBaseURL}/material/file/${material.material_id}/view`
+    const resp = await fetch(url, {
+      headers: { Authorization: token ? `Bearer ${token}` : '' }
+    })
+    if (!resp.ok) { ElMessage.error('查看资料失败'); return }
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    window.open(objectUrl, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 120 * 1000)
+  } catch (e) {
+    ElMessage.error('查看资料失败')
+  }
+}
+
+const downloadMaterialAttachment = async (material) => {
+  if (material.material_type === 'video') {
+    ElMessage.warning('视频资料仅支持在线查看，不支持下载')
+    return
+  }
+  try {
+    const apiBaseURL = 'http://localhost:8001/api'
+    const token = localStorage.getItem('token')
+    const url = `${apiBaseURL}/material/file/${material.material_id}/download`
+    const resp = await fetch(url, {
+      headers: { Authorization: token ? `Bearer ${token}` : '' }
+    })
+    if (!resp.ok) { ElMessage.error('下载资料失败'); return }
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = material.file_name || 'download'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000)
+  } catch (e) {
+    ElMessage.error('下载资料失败')
   }
 }
 
@@ -588,6 +711,22 @@ const goToSubmit = () => {
     name: 'ProblemCode',
     params: { problemId: currentProblem.value.id }
   })
+}
+
+// 学习资料辅助函数
+const materialTypeLabel = (type) => ({
+  pdf: 'PDF文档', word: 'Word文档', video: '视频', text: '文字内容'
+}[type] || type)
+
+const materialTagType = (type) => ({
+  pdf: 'danger', word: 'primary', video: 'warning', text: 'info'
+}[type] || 'info')
+
+const formatFileSize = (size) => {
+  if (size < 1024) return size + 'B'
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + 'KB'
+  if (size < 1024 * 1024 * 1024) return (size / (1024 * 1024)).toFixed(1) + 'MB'
+  return (size / (1024 * 1024 * 1024)).toFixed(1) + 'GB'
 }
 
 // 返回首页
@@ -1076,6 +1215,64 @@ const goBack = () => {
     background: #f5f7fa;
     border-radius: 8px;
     padding: 16px;
+  }
+}
+
+/* 学习资料列表 */
+.material-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .material-card {
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+    padding: 14px 16px;
+    transition: all 0.2s;
+
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .material-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .material-card-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .material-card-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: #303133;
+        }
+      }
+
+      .material-card-actions {
+        display: flex;
+        gap: 8px;
+      }
+    }
+
+    .material-text-content {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #606266;
+      line-height: 1.8;
+      white-space: pre-line;
+      background: #f5f7fa;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .material-file-info {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #909399;
+    }
   }
 }
 

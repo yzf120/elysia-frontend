@@ -31,7 +31,7 @@
           <div class="stat-value">{{ dashStats.totalUsers || 0 }}</div>
           <div class="stat-label">用户总数</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" @click="handlePendingAudits">
           <div class="stat-icon">⏰</div>
           <div class="stat-value">{{ dashStats.pendingAudits || 0 }}</div>
           <div class="stat-label">待审核</div>
@@ -41,7 +41,7 @@
       <div class="menu-list fade-in">
         <van-cell-group inset class="menu-group">
           <van-cell title="用户管理" icon="friends-o" is-link class="menu-cell" />
-          <van-cell title="教师审核" icon="passed" is-link class="menu-cell" />
+
           <van-cell title="课程管理" icon="notes-o" is-link class="menu-cell" />
           <van-cell title="意图字典" icon="label-o" is-link to="/admin/intent-dict" class="menu-cell" />
           <van-cell title="提示词模板" icon="edit" is-link to="/admin/intent-prompt" class="menu-cell" />
@@ -51,7 +51,11 @@
         </van-cell-group>
       </div>
 
-      <div class="logout-btn">
+      <div class="action-buttons fade-in">
+        <van-button round block type="primary" class="profile-button" @click="router.push('/admin/profile')">
+          <van-icon name="contact" style="margin-right: 6px;" />
+          我的
+        </van-button>
         <van-button round block type="danger" class="logout-button" @click="handleLogout">
           退出登录
         </van-button>
@@ -144,6 +148,15 @@ const handleLogout = async () => {
       router.push('/')
     }
   }).catch(() => {})
+}
+
+// 处理待审核申请点击事件
+const handlePendingAudits = () => {
+  showToast({
+    type: 'info',
+    message: '用户管理功能请在Web端使用',
+    duration: 2000
+  })
 }
 </script>
 
@@ -316,8 +329,19 @@ const handleLogout = async () => {
   font-size: 20px;
 }
 
-.logout-btn {
+.action-buttons {
   margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-button {
+  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px rgba(79, 110, 247, 0.24);
+  font-weight: 600;
+  height: 48px;
 }
 
 .logout-button {
