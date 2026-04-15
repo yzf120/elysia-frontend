@@ -27,7 +27,7 @@
       </div>
 
       <div class="footer fade-in" style="animation-delay: 0.4s">
-        <p>© 2024 Elysia 教育平台</p>
+        <p>© 2026 Elysia 教育平台</p>
       </div>
     </div>
   </div>

@@ -165,9 +165,19 @@
             <div class="record-detail" v-if="record.message">
               <pre :class="['record-message', record.status === 'accepted' ? 'record-message--success' : 'record-message--error']">{{ record.message }}</pre>
             </div>
-            <div class="record-code-toggle" @click="toggleRecordCode(record)">
-              <van-icon :name="record.showCode ? 'arrow-up' : 'arrow-down'" />
-              {{ record.showCode ? '收起代码' : '查看代码' }}
+            <div class="record-actions">
+              <div class="record-code-toggle" @click="toggleRecordCode(record)">
+                <van-icon :name="record.showCode ? 'arrow-up' : 'arrow-down'" />
+                {{ record.showCode ? '收起代码' : '查看代码' }}
+              </div>
+              <div
+                v-if="record.status === 'accepted' || record.statusKey === 'wa'"
+                class="record-chat-btn"
+                @click="addRecordToChat(record)"
+              >
+                <van-icon name="chat-o" />
+                加入对话
+              </div>
             </div>
             <div v-if="record.showCode" class="record-code-block">
               <pre class="record-code-pre">{{ record.code }}</pre>
@@ -346,6 +356,26 @@
 
         <!-- 输入区 -->
         <div class="ai-input-area">
+          <!-- 运行记录上下文卡片 -->
+          <div v-if="aiPendingRecord" class="ai-pending-record">
+            <div class="ai-pending-record-card">
+              <div class="ai-pending-record-header">
+                <span class="ai-pending-record-icon">📋</span>
+                <span class="ai-pending-record-title">运行记录已加入</span>
+                <van-tag :type="aiPendingRecord.status === 'accepted' ? 'success' : 'warning'" size="medium">
+                  {{ aiPendingRecord.status === 'accepted' ? '全部通过' : '部分通过' }}
+                </van-tag>
+                <span class="ai-pending-record-close" @click="removeAIPendingRecord">×</span>
+              </div>
+              <div class="ai-pending-record-body">
+                <span>{{ aiPendingRecord.langLabel }}</span>
+                <span class="ai-pending-record-sep">·</span>
+                <span>{{ aiPendingRecord.passedCount }}/{{ aiPendingRecord.total }} 通过</span>
+                <span v-if="aiPendingRecord.failedCount > 0" class="ai-pending-record-sep">·</span>
+                <span v-if="aiPendingRecord.failedCount > 0" style="color:#ee0a24">{{ aiPendingRecord.failedCount }} 未通过</span>
+              </div>
+            </div>
+          </div>
           <div v-if="aiPendingImages.length > 0" class="ai-pending-images">
             <div
               v-for="(img, idx) in aiPendingImages"
@@ -762,22 +792,67 @@ function addRunRecord(statusKey, opts = {}) {
   const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending
   const record = {
     id: ++recordIdCounter,
+    status: opts.rawStatus || '',
     statusKey,
     statusLabel: cfg.label,
     vanTagType: cfg.vanTagType,
     langLabel: langOptions.find(l => l.value === selectedLang.value)?.text || selectedLang.value,
+    langValue: selectedLang.value,
     datetime: formatDatetime(new Date()),
     timeCost: opts.timeCost || null,
     memory: opts.memory || null,
     message: opts.message || '',
     code: code.value,
     showCode: false,
+    caseResults: opts.caseResults || [],
   }
   runRecords.value.unshift(record)
 }
 
 const toggleRecordCode = (record) => {
   record.showCode = !record.showCode
+}
+
+// 待加入对话的运行记录（卡片形式，用户可删除）
+const aiPendingRecord = ref(null)
+// 会话级运行记录上下文（发送后持久保存，整个会话期间每次请求都传递给后端）
+const aiSessionRecord = ref(null)
+
+// 将运行记录加入 AI 对话（仅展示卡片，不立即发送）
+const addRecordToChat = (record) => {
+  const isAccepted = record.status === 'accepted'
+  const total = record.caseResults.length
+  const passedCount = record.caseResults.filter(c => c.passed).length
+  const failedCases = record.caseResults.filter(c => !c.passed)
+
+  aiPendingRecord.value = {
+    status: record.status,
+    langLabel: record.langLabel,
+    langValue: record.langValue,
+    total,
+    passedCount,
+    failedCount: failedCases.length,
+    code: record.code,
+    judgeResult: isAccepted ? 'accepted' : 'partial_pass',
+    failedCases,
+    failedCasesJSON: failedCases.length > 0 ? JSON.stringify(failedCases.map(c => ({
+      index: c.index, input: c.input, expected_output: c.expected_output,
+      actual_output: c.actual_output, status: c.status, error_msg: c.error_msg || '',
+    }))) : '',
+  }
+
+  aiPopupVisible.value = true
+  loadAIModels()
+  loadAISessionList()
+  nextTick(() => {
+    scrollAIToBottom()
+  })
+}
+
+// 删除待加入的运行记录卡片
+const removeAIPendingRecord = () => {
+  aiPendingRecord.value = null
+  aiSessionRecord.value = null
 }
 
 // ===== 主题 =====
@@ -1334,6 +1409,8 @@ const onRun = async () => {
         timeCost,
         memory: memUsed,
         message: recordMessage,
+        rawStatus: result.status,
+        caseResults,
       })
 
       // 运行模式不展示右下角弹窗，只切换到运行记录
@@ -1421,7 +1498,7 @@ const loadAIModels = async () => {
 }
 
 const canSendAI = computed(() => {
-  return (aiInputText.value.trim() !== '' || aiPendingImages.value.length > 0) && !aiLoading.value
+  return (aiInputText.value.trim() !== '' || aiPendingImages.value.length > 0 || aiPendingRecord.value !== null) && !aiLoading.value
 })
 
 const openAIChat = () => {
@@ -1525,8 +1602,18 @@ const sendAIMessage = async () => {
     messageContent += `\n[IMAGE:${img}]`
   }
 
-  if (text || images.length > 0) {
-    aiMessages.value.push({ role: 'user', content: messageContent, displayContent: text, type: 'text', time: nowTimeStr() })
+  // 如果有运行记录卡片但没有文本输入，自动生成消息
+  if (!text && images.length === 0 && aiPendingRecord.value) {
+    const pr = aiPendingRecord.value
+    if (pr.judgeResult === 'accepted') {
+      messageContent = `[运行记录分析] 我的代码已全部通过（${pr.passedCount}/${pr.total}），请帮我分析代码是否有优化空间。`
+    } else {
+      messageContent = `[运行记录分析] 我的代码部分通过（${pr.passedCount}/${pr.total}），请帮我分析为什么没有通过剩余用例，引导我思考如何修复。`
+    }
+  }
+
+  if (text || images.length > 0 || aiPendingRecord.value) {
+    aiMessages.value.push({ role: 'user', content: messageContent, displayContent: text || messageContent, type: 'text', time: nowTimeStr() })
   }
   for (const img of images) {
     aiMessages.value.push({ role: 'user', content: img, type: 'image', time: nowTimeStr() })
@@ -1552,7 +1639,11 @@ const sendAIMessage = async () => {
       problem_info: buildProblemInfo(),
       messages: historyMessages,
       model_id: aiSelectedModel.value || 'doubao-seed-1-6-lite-251015',
-      enable_thinking: aiDeepThink.value
+      enable_thinking: aiDeepThink.value,
+      user_code: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).code : '',
+      user_code_lang: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).langValue : '',
+      judge_result: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).judgeResult : '',
+      failed_cases: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).failedCasesJSON : '',
     }, aiAbortController.signal)
 
     if (!response.ok) {
@@ -1622,6 +1713,7 @@ const sendAIMessage = async () => {
       }
     }
 
+    let streamDone = false
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
@@ -1641,16 +1733,29 @@ const sendAIMessage = async () => {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6).trim()
-          if (data === '[DONE]') { aiLoading.value = false; break }
+          if (data === '[DONE]') { streamDone = true; break }
           try {
             const chunk = JSON.parse(data)
             if (chunk.content) {
               processChunkContent(chunk.content)
               scrollAIToBottom()
             }
-            if (chunk.is_end) aiLoading.value = false
+            if (chunk.is_end) streamDone = true
           } catch (e) { /* 忽略 */ }
         }
+      }
+
+      // 流结束后：刷出 thinkBuf 残留内容，关闭 reader，立即退出
+      if (streamDone) {
+        if (thinkBuf) {
+          const msg = aiMessages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        aiLoading.value = false
+        reader.cancel().catch(() => {})
+        break
       }
     }
   } catch (e) {
@@ -1665,6 +1770,11 @@ const sendAIMessage = async () => {
   } finally {
     aiLoading.value = false
     aiAbortController = null
+    // 发送完成后清除运行记录卡片（UI卡片消失），但保留会话级上下文
+    if (aiPendingRecord.value) {
+      aiSessionRecord.value = aiPendingRecord.value
+      aiPendingRecord.value = null
+    }
   }
 }
 
@@ -1696,11 +1806,13 @@ onMounted(async () => {
         const timeCost = r.time_cost || 0
         const memUsed = r.memory_used ? (r.memory_used / 1024).toFixed(1) : null
 
-        // 解析 output 构建 message
+        // 解析 output 构建 message 和 caseResults
         let recordMessage = r.error_msg || statusInfo.message || ''
+        let caseResults = []
         try {
           const parsed = JSON.parse(r.output || '[]')
           if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].index !== undefined) {
+            caseResults = parsed
             const passedCount = parsed.filter(c => c.passed).length
             const total = parsed.length
             const firstFail = parsed.find(c => !c.passed)
@@ -1723,6 +1835,7 @@ onMounted(async () => {
           statusLabel: cfg.label,
           vanTagType: cfg.vanTagType,
           langLabel: langOptions.find(l => l.value === r.language)?.text || r.language,
+          langValue: r.language || '',
           datetime: r.created_at,
           timeCost,
           memory: memUsed,
@@ -1730,6 +1843,7 @@ onMounted(async () => {
           code: r.code,
           showCode: false,
           status: r.status,
+          caseResults,
         })
       })
     } catch (e) {
@@ -1948,6 +2062,11 @@ onMounted(async () => {
   &.record-message--success { color: #07c160; }
   &.record-message--error   { color: #ee0a24; }
 }
+.record-actions {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #f0f0f0;
+}
 .record-code-toggle {
   display: flex;
   align-items: center;
@@ -1956,9 +2075,22 @@ onMounted(async () => {
   font-size: 12px;
   color: #1989fa;
   cursor: pointer;
-  border-top: 1px solid #f0f0f0;
   background: #fff;
   user-select: none;
+  flex: 1;
+}
+.record-chat-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #07c160;
+  cursor: pointer;
+  background: #fff;
+  user-select: none;
+  border-left: 1px solid #f0f0f0;
+  white-space: nowrap;
 }
 .record-code-block {
   border-top: 1px solid #f0f0f0;
@@ -2696,6 +2828,53 @@ onMounted(async () => {
   padding: 10px 12px;
   background: white;
   flex-shrink: 0;
+}
+
+.ai-pending-record {
+  margin-bottom: 8px;
+}
+.ai-pending-record-card {
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.ai-pending-record-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.ai-pending-record-icon {
+  font-size: 16px;
+}
+.ai-pending-record-title {
+  font-weight: 600;
+  color: #333;
+}
+.ai-pending-record-close {
+  margin-left: auto;
+  cursor: pointer;
+  font-size: 18px;
+  color: #999;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.ai-pending-record-body {
+  color: #666;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ai-pending-record-sep {
+  color: #ccc;
 }
 
 .ai-pending-images {

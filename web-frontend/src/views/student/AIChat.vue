@@ -335,9 +335,16 @@ const pendingImages = ref([]); // [{dataUrl: 'data:image/...;base64,...', name: 
 
 // 中止控制器（用于终止流式请求）
 let abortController = null;
+// SSE 流 reader 引用（用于停止时主动关闭底层连接）
+let streamReader = null;
 
 // 停止当前对话
 const stopMessage = () => {
+  // 先关闭 SSE 流 reader，确保底层连接被断开，后端能感知到客户端断开
+  if (streamReader) {
+    streamReader.cancel().catch(() => {});
+    streamReader = null;
+  }
   if (abortController) {
     abortController.abort();
     abortController = null;
@@ -528,6 +535,7 @@ const sendMessage = async () => {
 
     // 读取 SSE 流
     const reader = response.body.getReader()
+    streamReader = reader  // 保存引用，以便停止时主动关闭
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
     // think标签状态机：解析跨chunk的<think>...</think>
@@ -566,6 +574,7 @@ const sendMessage = async () => {
       }
     }
 
+    let streamDone = false
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
@@ -586,7 +595,7 @@ const sendMessage = async () => {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6).trim()
-          if (data === '[DONE]') { isLoading.value = false; break }
+          if (data === '[DONE]') { streamDone = true; break }
           try {
             const chunk = JSON.parse(data)
             if (chunk.content) {
@@ -594,9 +603,22 @@ const sendMessage = async () => {
               await nextTick()
               scrollToBottom()
             }
-            if (chunk.is_end) isLoading.value = false
+            if (chunk.is_end) streamDone = true
           } catch (e) { /* 忽略解析错误 */ }
         }
+      }
+
+      // 流结束后：刷出 thinkBuf 残留内容，关闭 reader，立即退出
+      if (streamDone) {
+        if (thinkBuf) {
+          const msg = messages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        isLoading.value = false
+        reader.cancel().catch(() => {})
+        break
       }
     }
   } catch (error) {
@@ -613,6 +635,7 @@ const sendMessage = async () => {
   } finally {
     isLoading.value = false;
     abortController = null;
+    streamReader = null;
     // 如果是首轮对话（之前没有 sessionId），延迟刷新会话列表并更新 currentSessionId
     if (!currentSessionId.value) {
       setTimeout(async () => {

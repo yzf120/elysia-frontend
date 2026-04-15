@@ -408,6 +408,7 @@ const sendMessage = async () => {
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
 
+    let streamDone = false
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -419,7 +420,7 @@ const sendMessage = async () => {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6).trim()
-          if (data === '[DONE]') { isLoading.value = false; break }
+          if (data === '[DONE]') { streamDone = true; break }
           try {
             const chunk = JSON.parse(data)
             if (chunk.content) {
@@ -427,9 +428,16 @@ const sendMessage = async () => {
               await nextTick()
               scrollToBottom()
             }
-            if (chunk.is_end) isLoading.value = false
+            if (chunk.is_end) streamDone = true
           } catch (e) { /* 忽略解析错误 */ }
         }
+      }
+
+      // 流结束后：关闭 reader，立即退出
+      if (streamDone) {
+        isLoading.value = false
+        reader.cancel().catch(() => {})
+        break
       }
     }
   } catch (error) {
