@@ -490,9 +490,7 @@ const logout = async () => {
       type: 'warning'
     });
 
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('userName');
+    localStorage.clear();
     
     ElMessage.success('已退出登录');
     router.push('/');

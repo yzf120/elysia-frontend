@@ -79,12 +79,7 @@ const router = createRouter({
       component: () => import('@/views/student/TaskComplete.vue'),
       meta: { requiresAuth: true, userType: 'student' }
     },
-    {
-      path: '/student/wrong-book',
-      name: 'student-wrong-book',
-      component: () => import('@/views/student/WrongBook.vue'),
-      meta: { requiresAuth: true, userType: 'student' }
-    },
+
     {
       path: '/student/profile',
       name: 'student-profile',

@@ -117,7 +117,7 @@ const publishTask = async () => {
     setTimeout(() => {
       const classId = route.query.classId;
       if (classId) {
-        router.push({ name: 'ClassDetail', params: { id: classId } });
+router.push({ name: 'TeacherClassDetail', params: { classId: classId } });
       } else {
         router.push({ name: 'TeacherDashboard' });
       }

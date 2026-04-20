@@ -34,7 +34,7 @@ const StudentDashboard = () => import('../views/student/Dashboard.vue');
 const AIChat = () => import('../views/student/AIChat.vue');
 const CourseStudy = () => import('../views/student/CourseStudy.vue');
 const TaskComplete = () => import('../views/student/TaskComplete.vue');
-const WrongBook = () => import('../views/student/WrongBook.vue');
+
 const StudentProfile = () => import('../views/student/StudentProfile.vue');
 const SessionCollection = () => import('../views/student/SessionCollection.vue');
 const StudyPlan = () => import('../views/student/StudyPlan.vue');
@@ -146,15 +146,9 @@ const routes = [
   },
   {
     path: '/teacher/create-class',
-    name: 'CreateClass',
+    name: 'TeacherCreateClass',
     component: CreateClass,
     meta: { title: '创建班级', requiresAuth: true, role: 'teacher' }
-  },
-  {
-    path: '/teacher/class/:id',
-    name: 'ClassDetail',
-    component: ClassDetail,
-    meta: { title: '班级详情', requiresAuth: true, role: 'teacher' }
   },
   {
     path: '/teacher/course-management',
@@ -210,12 +204,6 @@ const routes = [
     component: () => import('../views/teacher/ClassDetail.vue'),
     meta: { title: '班级详情', requiresAuth: true, role: 'teacher' }
   },
-  {
-    path: '/teacher/create-class',
-    name: 'CreateClass',
-    component: () => import('../views/teacher/CreateClass.vue'),
-    meta: { title: '创建班级', requiresAuth: true, role: 'teacher' }
-  },
   // 学生端路由
   {
     path: '/student',
@@ -245,12 +233,7 @@ const routes = [
     component: TaskComplete,
     meta: { title: '任务完成', requiresAuth: true, role: 'student' }
   },
-  {
-    path: '/student/wrong-book',
-    name: 'WrongBook',
-    component: WrongBook,
-    meta: { title: '错题本', requiresAuth: true, role: 'student' }
-  },
+
   {
     path: '/student/profile',
     name: 'StudentProfile',

@@ -30,8 +30,7 @@ api.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response;
       if (status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userInfo');
+        localStorage.clear();
         window.location.href = '/';
       }
       return Promise.reject(data.message || data.error || '请求失败');
@@ -181,7 +180,12 @@ export const adminAPI = {
 
   // 用户侧查询能力（管理员也可查看）
   getSystemAnnouncements: fetchSystemAnnouncements,
-  getPlatformBookshelf: fetchPlatformBookshelf
+  getPlatformBookshelf: fetchPlatformBookshelf,
+
+  // AI模型配置管理
+  getAIModelConfigs: () => api.get('/admin/ai-models'),
+  toggleAIModel: (modelId, enabled) =>
+    api.post('/admin/ai-models/toggle', { model_id: modelId, enabled })
 };
 
 // ==================== 教师接口 ====================
@@ -320,33 +324,11 @@ export const teacherAPI = {
     });
   },
 
-  // 查询支持的AI模型列表
+  // 查询支持的AI模型列表（后端已过滤管理员禁用的模型）
   getAIModels: () => api.get('/student/ai/models'),
-
-  // 查询用户AI会话列表（按时间倒序）
-  getAISessions: (page = 1, pageSize = 50) =>
-    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
-
-  // 查询某会话的消息列表
-  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
-    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } }),
-
-  // 收藏会话
-  favoriteSession: (sessionId) =>
-    api.post('/ai/favorite', { session_id: sessionId }),
-
-  // 取消收藏会话
-  unfavoriteSession: (sessionId) =>
-    api.post('/ai/unfavorite', { session_id: sessionId }),
-
-  // 查询收藏列表
-  listFavorites: (page = 1, pageSize = 20) =>
-    api.get('/ai/favorites', { params: { page, page_size: pageSize } }),
-
-  // 检查会话是否已收藏
-  checkFavorite: (sessionId) =>
-    api.get('/ai/favorite/check', { params: { session_id: sessionId } })
 };
+
+// ==================== 学生接口 ====================
 export const studentAPI = {
   // 发送注册验证码
   sendRegisterCode: (phoneNumber) =>
@@ -464,7 +446,7 @@ export const studentAPI = {
     });
   },
 
-  // 查询支持的AI模型列表
+  // 查询支持的AI模型列表（后端已过滤管理员禁用的模型）
   getAIModels: () => api.get('/student/ai/models'),
 
   // 查询用户AI会话列表（按时间倒序）

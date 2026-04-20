@@ -1735,8 +1735,8 @@ const goBack = () => {
   const classId = route.query.classId
   if (from === 'chapters' && classId) {
     router.push({
-      name: 'ClassDetail',
-      params: { id: classId },
+      name: 'TeacherClassDetail',
+      params: { classId: classId },
       query: { tab: 'chapters' }
     })
   } else {

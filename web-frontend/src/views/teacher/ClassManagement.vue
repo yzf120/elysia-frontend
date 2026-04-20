@@ -164,7 +164,7 @@ const loadClasses = async () => {
 
 // 跳转创建班级
 const goCreateClass = () => {
-  router.push({ name: 'CreateClass' });
+router.push({ name: 'TeacherCreateClass' });
 };
 
 // 跳转班级详情

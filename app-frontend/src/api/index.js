@@ -398,7 +398,7 @@ export const studentAPI = {
     return response
   },
 
-  // 查询支持的AI模型列表
+  // 查询支持的AI模型列表（后端已过滤管理员禁用的模型）
   getAIModels: () => api.get('/student/ai/models'),
 
   // 查询用户AI会话列表（按时间倒序）

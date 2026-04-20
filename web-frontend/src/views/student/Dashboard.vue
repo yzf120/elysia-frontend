@@ -224,14 +224,6 @@
           <div class="card-desc">查看课程章节内容</div>
         </div>
 
-        <div class="access-card" @click="goToWrongBook">
-          <div class="card-icon" style="background: linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%);">
-            <el-icon :size="32"><DocumentCopy /></el-icon>
-          </div>
-          <div class="card-title">错题本</div>
-          <div class="card-desc">查看收藏的错题</div>
-        </div>
-
         <div class="access-card" @click="goToCollection">
           <div class="card-icon" style="background: linear-gradient(135deg, #34D399 0%, #2DD4BF 100%);">
             <el-icon :size="32"><Star /></el-icon>
@@ -470,10 +462,6 @@ const goToAIChat = () => {
 
 const goToCourse = () => {
   router.push({ name: 'CourseStudy' });
-};
-
-const goToWrongBook = () => {
-  router.push({ name: 'WrongBook' });
 };
 
 const goToCollection = () => {

@@ -390,9 +390,7 @@ const handleChangePassword = async () => {
 
         // 清除缓存并跳转到登录页
         setTimeout(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('userInfo');
-          localStorage.removeItem('userType');
+    localStorage.clear();
           window.location.href = '/';
         }, 1500);
       } catch (error) {

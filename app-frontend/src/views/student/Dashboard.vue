@@ -166,17 +166,6 @@
               </template>
             </van-grid-item>
             <van-grid-item
-              icon="records-o"
-              text="错题本"
-              @click="goToWrongBook"
-            >
-              <template #icon>
-                <div class="grid-icon" style="background: linear-gradient(135deg, #60A5FA 0%, #38BDF8 100%);">
-                  <van-icon name="records-o" size="24" color="#fff" />
-                </div>
-              </template>
-            </van-grid-item>
-            <van-grid-item
               icon="star-o"
               text="我的收藏"
               @click="goToCollection"
@@ -511,11 +500,6 @@ const goToAIChat = () => {
 // 跳转到课程学习
 const goToCourse = () => {
   router.push('/student/course-study')
-}
-
-// 跳转到错题本
-const goToWrongBook = () => {
-  router.push('/student/wrong-book')
 }
 
 // 跳转到我的收藏

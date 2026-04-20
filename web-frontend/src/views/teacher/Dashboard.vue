@@ -342,7 +342,7 @@ const deleteClass = async (classId) => {
 };
 
 const goToClassDetail = (classId) => {
-  router.push({ name: 'ClassDetail', params: { id: classId } });
+router.push({ name: 'TeacherClassDetail', params: { classId: classId } });
 };
 
 const goToProfile = () => {
@@ -350,7 +350,7 @@ const goToProfile = () => {
 };
 
 const goToCreateClass = () => {
-  router.push({ name: 'CreateClass' });
+router.push({ name: 'TeacherCreateClass' });
 };
 
 const goToClassManagement = () => {
