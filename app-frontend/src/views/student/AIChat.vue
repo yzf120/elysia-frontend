@@ -116,17 +116,6 @@
                 </div>
               </template>
             </van-cell>
-            <van-cell title="联网搜索" class="setting-cell">
-              <template #icon>
-                <van-icon name="search" color="#67c23a" size="18" />
-              </template>
-              <template #value>
-                <span class="setting-desc">获取实时信息</span>
-              </template>
-              <template #right-icon>
-                <van-switch v-model="enableWebSearch" size="22" active-color="#67c23a" />
-              </template>
-            </van-cell>
             <van-cell title="深度思考" class="setting-cell" v-if="!isQwenModel">
               <template #icon>
                 <van-icon name="bulb-o" color="#e6a23c" size="18" />
@@ -295,35 +284,14 @@
       @select="onActionSelect"
     />
 
-    <!-- 导出对话框 -->
-    <van-dialog
-      v-model:show="exportDialogVisible"
-      title="导出会话"
-      show-cancel-button
-      @confirm="exportSession"
-    >
-      <van-radio-group v-model="exportFormat">
-        <van-cell-group inset>
-          <van-cell title="Markdown格式" clickable @click="exportFormat = 'markdown'">
-            <template #right-icon>
-              <van-radio name="markdown" />
-            </template>
-          </van-cell>
-          <van-cell title="文本格式" clickable @click="exportFormat = 'text'">
-            <template #right-icon>
-              <van-radio name="text" />
-            </template>
-          </van-cell>
-        </van-cell-group>
-      </van-radio-group>
-    </van-dialog>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { showToast, showDialog } from 'vant'
+import { showToast } from 'vant'
 import { studentAPI } from '../../api/index.js'
 import { marked } from 'marked'
 
@@ -358,7 +326,6 @@ const activeCollapse = ref('')
 const selectedModel = ref('')
 const modelOptions = ref([])
 const modelsLoading = ref(false)
-const enableWebSearch = ref(false)
 const enableDeepThink = ref(false)
 
 // 加载模型列表
@@ -374,10 +341,10 @@ const loadModels = async () => {
   } catch (e) {
     console.error('加载模型列表失败:', e)
     modelOptions.value = [
-      { text: 'Doubao-Seed-1.6-lite', value: 'doubao-seed-1-6-lite-251015' },
+      { text: 'Doubao-Seed-2.0-lite', value: 'doubao-seed-2-0-lite-260215' },
       { text: 'Qwen3-Omni-Flash', value: 'qwen3-omni-flash' }
     ]
-    if (!selectedModel.value) selectedModel.value = 'doubao-seed-1-6-lite-251015'
+    if (!selectedModel.value) selectedModel.value = 'doubao-seed-2-0-lite-260215'
   } finally {
     modelsLoading.value = false
   }
@@ -417,13 +384,10 @@ const pendingImages = ref([]) // [{dataUrl: 'data:image/...;base64,...', name: '
 const showActionSheet = ref(false)
 const actions = [
   { name: isFavorited.value ? '取消收藏' : '收藏会话', icon: isFavorited.value ? 'star' : 'star-o' },
-  { name: '导出会话', icon: 'down' },
-  { name: '生成标题', icon: 'edit' }
+  { name: '导出会话', icon: 'down' }
 ]
 
-// 导出对话框
-const exportDialogVisible = ref(false)
-const exportFormat = ref('markdown')
+
 
 // 根据时间生成问候语
 const greeting = computed(() => {
@@ -550,7 +514,7 @@ const sendMessage = async () => {
       session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
-      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
+      model_id: selectedModel.value || 'doubao-seed-2-0-lite-260215',
       enable_thinking: enableDeepThink.value
     }, abortController.signal)
 
@@ -712,9 +676,7 @@ const onActionSelect = (action) => {
   if (action.name === '收藏会话' || action.name === '取消收藏') {
     collectSession()
   } else if (action.name === '导出会话') {
-    showExportDialog()
-  } else if (action.name === '生成标题') {
-    generateTitle()
+    exportSession()
   }
 }
 
@@ -760,71 +722,32 @@ const collectSession = async () => {
   }
 }
 
-// 显示导出对话框
-const showExportDialog = () => {
+// 导出会话为 doc 文件
+const exportSession = () => {
   if (messages.value.length === 0) {
     showToast('当前会话为空，无法导出')
     return
   }
-  exportDialogVisible.value = true
-}
 
-// 导出会话
-const exportSession = () => {
-  let content = ''
   const title = `会话记录_${new Date().toISOString().split('T')[0]}`
+  let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${title}</title></head><body>`
+  htmlContent += `<h1>${title}</h1>`
+  messages.value.forEach(msg => {
+    const role = msg.role === 'user' ? '用户' : 'AI助教'
+    htmlContent += `<h3>${role}</h3><p>${msg.content.replace(/\n/g, '<br>')}</p><hr>`
+  })
+  htmlContent += '</body></html>'
 
-  if (exportFormat.value === 'markdown') {
-    content = `# ${title}\n\n`
-    messages.value.forEach(msg => {
-      content += `## ${msg.role === 'user' ? '用户' : 'AI助教'}\n\n${msg.content}\n\n---\n\n`
-    })
-  } else {
-    content = `${title}\n\n`
-    messages.value.forEach(msg => {
-      content += `【${msg.role === 'user' ? '用户' : 'AI助教'}】\n${msg.content}\n\n`
-    })
-  }
-
-  // 移动端文件下载适配
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${title}.${exportFormat.value === 'markdown' ? 'md' : 'txt'}`
+  link.download = `${title}.doc`
   link.click()
   URL.revokeObjectURL(url)
 
   showToast('导出成功')
-}
-
-// 生成标题
-const generateTitle = async () => {
-  if (messages.value.length === 0) {
-    showToast('当前会话为空，无法生成标题')
-    return
-  }
-
-  try {
-    const { value } = await showDialog({
-      title: '生成标题',
-      message: '请输入会话标题',
-      showCancelButton: true,
-      beforeClose: (action, done) => {
-        if (action === 'confirm') {
-          done()
-        } else {
-          done()
-        }
-      }
-    })
-
-    if (value) {
-      showToast('标题已更新')
-    }
-  } catch {
-    // 用户取消
-  }
 }
 
 // 滚动到底部

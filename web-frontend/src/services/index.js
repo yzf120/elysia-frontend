@@ -326,6 +326,26 @@ export const teacherAPI = {
 
   // 查询支持的AI模型列表（后端已过滤管理员禁用的模型）
   getAIModels: () => api.get('/student/ai/models'),
+
+  // 查询用户AI会话列表（按时间倒序）
+  getAISessions: (page = 1, pageSize = 50) =>
+    api.get('/student/ai/sessions', { params: { page, page_size: pageSize } }),
+
+  // 查询某会话的消息列表
+  getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
+    api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } }),
+
+  // 收藏会话
+  favoriteSession: (sessionId) =>
+    api.post('/ai/favorite', { session_id: sessionId }),
+
+  // 取消收藏会话
+  unfavoriteSession: (sessionId) =>
+    api.post('/ai/unfavorite', { session_id: sessionId }),
+
+  // 检查会话是否已收藏
+  checkFavorite: (sessionId) =>
+    api.get('/ai/favorite/check', { params: { session_id: sessionId } }),
 };
 
 // ==================== 学生接口 ====================
@@ -477,6 +497,23 @@ export const problemAPI = {
   listProblems: (keyword = '', difficulty = '', page = 1, pageSize = 20) =>
     api.get('/problem/list', { params: { keyword, difficulty, page, page_size: pageSize } }),
   getProblem: (id) => api.get('/problem/get', { params: { id } })
+};
+
+// 知识库管理 API（管理员）
+export const knowledgeApi = {
+  // 导入文档到知识库
+  importDocument: (data) => api.post('/admin/knowledge/import', data),
+
+  // 获取文档列表
+  listDocuments: ({ page = 1, page_size = 10, keyword = '' }) =>
+    api.get('/admin/knowledge/list', { params: { page, page_size, keyword } }),
+
+  // 删除文档
+  deleteDocument: (data) => api.post('/admin/knowledge/delete', data),
+
+  // 检索知识库
+  searchKnowledge: (query, topK = 5) =>
+    api.post('/admin/knowledge/search', { query, top_k: topK }),
 };
 
 export default api;

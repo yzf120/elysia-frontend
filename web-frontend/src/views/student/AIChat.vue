@@ -85,10 +85,7 @@
               </span>
             </transition>
           </div>
-          <div class="function-item">
-            <span class="label">联网搜索：</span>
-            <el-switch v-model="enableWebSearch" />
-          </div>
+
           <div class="function-item" v-if="!isQwenModel">
             <span class="label">深度思考：</span>
             <el-switch v-model="enableDeepThink" />
@@ -231,29 +228,15 @@
             <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
             <span>{{ isFavorited ? '已收藏' : '收藏会话' }}</span>
           </el-button>
-          <el-button class="action-btn export-btn" @click="showExportDialog">
+          <el-button class="action-btn export-btn" @click="exportSession">
             <el-icon><Download /></el-icon>
             <span>导出会话</span>
-          </el-button>
-          <el-button class="action-btn title-btn" @click="generateTitle">
-            <el-icon><Edit /></el-icon>
-            <span>生成标题</span>
           </el-button>
         </div>
       </div>
     </div>
 
-    <!-- 导出会话对话框 -->
-    <el-dialog v-model="exportDialogVisible" title="导出会话" width="400px">
-      <el-radio-group v-model="exportFormat">
-        <el-radio label="markdown">Markdown格式</el-radio>
-        <el-radio label="text">文本格式</el-radio>
-      </el-radio-group>
-      <template #footer>
-        <el-button @click="exportDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="exportSession">确定导出</el-button>
-      </template>
-    </el-dialog>
+
   </div>
 </template>
 
@@ -290,7 +273,6 @@ const currentSessionId = ref(null);
 
 // 模型配置
 const selectedModel = ref('')
-const enableWebSearch = ref(false);
 const enableDeepThink = ref(false);
 
 // 模型列表（从后端动态加载）
@@ -310,10 +292,10 @@ const loadModels = async () => {
     console.error('加载模型列表失败:', e)
     // 失败时使用默认模型
     modelList.value = [
-      { model_id: 'doubao-seed-1-6-lite-251015', model_name: 'Doubao-Seed-1.6-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
+      { model_id: 'doubao-seed-2-0-lite-260215', model_name: 'Doubao-Seed-2.0-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
       { model_id: 'qwen3-omni-flash', model_name: 'Qwen3-Omni-Flash', provider: 'qwen', description: '全模态模型，Thinker–Talker 架构' }
     ]
-    if (!selectedModel.value) selectedModel.value = 'doubao-seed-1-6-lite-251015'
+    if (!selectedModel.value) selectedModel.value = 'doubao-seed-2-0-lite-260215'
   } finally {
     modelsLoading.value = false
   }
@@ -359,9 +341,7 @@ const stopMessage = () => {
   isLoading.value = false;
 };
 
-// 导出对话框
-const exportDialogVisible = ref(false);
-const exportFormat = ref('markdown');
+
 
 // 根据时间生成问候语
 const greeting = computed(() => {
@@ -495,7 +475,7 @@ const sendMessage = async () => {
       session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
-      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015',
+      model_id: selectedModel.value || 'doubao-seed-2-0-lite-260215',
       enable_thinking: enableDeepThink.value
     }, abortController.signal)
 
@@ -732,65 +712,32 @@ const collectSession = async () => {
   }
 };
 
-// 显示导出对话框
-const showExportDialog = () => {
+// 导出会话为 doc 文件
+const exportSession = () => {
   if (messages.value.length === 0) {
     ElMessage.warning('当前会话为空，无法导出');
     return;
   }
-  exportDialogVisible.value = true;
-};
 
-// 导出会话
-const exportSession = () => {
-  let content = '';
   const title = `会话记录_${new Date().toISOString().split('T')[0]}`;
+  let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${title}</title></head><body>`;
+  htmlContent += `<h1>${title}</h1>`;
+  messages.value.forEach(msg => {
+    const role = msg.role === 'user' ? '用户' : 'AI助教';
+    htmlContent += `<h3>${role}</h3><p>${msg.content.replace(/\n/g, '<br>')}</p><hr>`;
+  });
+  htmlContent += '</body></html>';
 
-  if (exportFormat.value === 'markdown') {
-    content = `# ${title}\n\n`;
-    messages.value.forEach(msg => {
-      content += `## ${msg.role === 'user' ? '用户' : 'AI助教'}\n\n${msg.content}\n\n---\n\n`;
-    });
-  } else {
-    content = `${title}\n\n`;
-    messages.value.forEach(msg => {
-      content += `【${msg.role === 'user' ? '用户' : 'AI助教'}】\n${msg.content}\n\n`;
-    });
-  }
-
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${title}.${exportFormat.value === 'markdown' ? 'md' : 'txt'}`;
+  link.download = `${title}.doc`;
   link.click();
   URL.revokeObjectURL(url);
 
-  exportDialogVisible.value = false;
   ElMessage.success('导出成功');
-};
-
-// 生成标题
-const generateTitle = async () => {
-  if (messages.value.length === 0) {
-    ElMessage.warning('当前会话为空，无法生成标题');
-    return;
-  }
-
-  try {
-    // TODO: 调用AI API生成标题
-    const title = await ElMessage.prompt('请输入会话标题', '生成标题', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputValue: '新会话'
-    });
-
-    if (title.value) {
-      ElMessage.success('标题已更新');
-    }
-  } catch {
-    // 用户取消
-  }
 };
 
 // 滚动到底部

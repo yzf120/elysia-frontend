@@ -1,23 +1,21 @@
 <template>
-  <div class="teacher-page teacher-ai-chat-page">
-    <!-- 顶部导航栏 -->
-    <div class="teacher-top-nav">
-      <div class="nav-left">
-        <el-button type="primary" @click="goBack">
-          <el-icon><ArrowLeft /></el-icon>
-          返回首页
-        </el-button>
-        <el-breadcrumb separator="/">
-          <el-breadcrumb-item>教师端</el-breadcrumb-item>
-          <el-breadcrumb-item>AI对话</el-breadcrumb-item>
-        </el-breadcrumb>
-      </div>
+  <div class="teacher-ai-chat-page">
+    <!-- 顶部返回按钮 -->
+    <div class="top-bar">
+      <el-button type="primary" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+        返回首页
+      </el-button>
+      <el-breadcrumb separator="/">
+        <el-breadcrumb-item>教师端</el-breadcrumb-item>
+        <el-breadcrumb-item>AI对话</el-breadcrumb-item>
+      </el-breadcrumb>
     </div>
 
     <div class="chat-container">
       <!-- 左侧会话管理栏 -->
       <div class="sidebar">
-        <el-button type="primary" class="new-session-btn teacher-btn-primary" @click="createNewSession">
+        <el-button type="primary" class="new-session-btn" @click="createNewSession">
           <el-icon><Plus /></el-icon>
           新会话
         </el-button>
@@ -51,17 +49,44 @@
       <div class="chat-main">
         <!-- 顶部功能区 -->
         <div class="function-bar">
-          <div class="function-item">
-            <span class="label">模型选择：</span>
-            <el-select v-model="selectedModel" placeholder="选择模型" style="width: 150px">
-              <el-option label="DeepSeek" value="deepseek" />
-              <el-option label="豆包" value="doubao" />
-              <el-option label="通义千问" value="qwen" />
+          <div class="function-item model-item">
+            <span class="label">模型：</span>
+            <el-select
+              v-model="selectedModel"
+              placeholder="选择模型"
+              style="width: 210px"
+              :loading="modelsLoading"
+              popper-class="model-select-popper"
+            >
+              <el-option
+                v-for="m in modelList"
+                :key="m.model_id"
+                :value="m.model_id"
+                :label="m.model_name"
+              >
+                <div class="model-option-item">
+                  <div class="model-option-header">
+                    <span class="model-option-name">{{ m.model_name }}</span>
+                    <span class="model-option-provider" :class="m.provider">{{ m.provider === 'doubao' ? '豆包' : '千问' }}</span>
+                  </div>
+                  <div class="model-option-desc">{{ m.description }}</div>
+                </div>
+              </el-option>
             </el-select>
+            <transition name="fade">
+              <span v-if="currentModelDesc" class="model-desc-badge">
+                {{ currentModelDesc }}
+              </span>
+            </transition>
           </div>
-          <div class="function-item">
-            <span class="label">联网搜索：</span>
-            <el-switch v-model="enableWebSearch" />
+
+          <div class="function-item" v-if="!isQwenModel">
+            <span class="label">深度思考：</span>
+            <el-switch v-model="enableDeepThink" />
+          </div>
+          <div class="function-item" v-else>
+            <span class="label">深度思考：</span>
+            <span class="qwen-auto-tip">模型自动决定是否开启思考模式</span>
           </div>
         </div>
 
@@ -74,17 +99,6 @@
             </div>
             <h2>{{ greeting }}，{{ teacherName }}老师</h2>
             <p>我是您的AI智能助教，有什么可以帮助您的吗？</p>
-            <!-- 快捷入口 -->
-            <div class="quick-actions">
-              <el-button type="primary" @click="quickAction('material')">
-                <el-icon><Document /></el-icon>
-                AI教学资料生成
-              </el-button>
-              <el-button type="success" @click="quickAction('question')">
-                <el-icon><Edit /></el-icon>
-                AI出题
-              </el-button>
-            </div>
           </div>
 
           <!-- 消息列表 -->
@@ -94,28 +108,38 @@
                 <el-avatar v-if="msg.role === 'user'" :size="40">
                   {{ teacherName.charAt(0) }}
                 </el-avatar>
-                <el-avatar v-else :size="40" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);">
+                <el-avatar v-else :size="40" style="background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);">
                   <el-icon><ChatDotRound /></el-icon>
                 </el-avatar>
               </div>
               <div class="message-content">
-              <div class="message-text">
-                <!-- AI 消息内容为空时显示 loading 动画 -->
-                <div v-if="msg.role === 'assistant' && !msg.content" class="loading-dots">
+              <!-- 深度思考内容区块 -->
+              <div v-if="msg.thinkContent" class="think-block">
+                <div class="think-header" @click="msg.thinkExpanded = !msg.thinkExpanded">
+                  <span class="think-icon">🧠</span>
+                  <span class="think-title">思考过程</span>
+                  <span class="think-toggle">{{ msg.thinkExpanded ? '收起' : '展开' }}</span>
+                </div>
+                <div v-show="msg.thinkExpanded" class="think-content" v-html="formatMessage(msg.thinkContent)"></div>
+              </div>
+              <!-- AI 消息内容为空时显示 loading 动画 -->
+              <div v-if="msg.role === 'assistant' && !msg.content && !msg.thinkContent" class="message-text">
+                <div class="loading-dots">
                   <span></span><span></span><span></span>
                 </div>
-                <div v-else>
-                  <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
-                  <!-- 图片预览 -->
-                  <div v-if="msg.images && msg.images.length > 0" class="message-images">
-                    <img
-                      v-for="(imgUrl, imgIdx) in msg.images"
-                      :key="imgIdx"
-                      :src="imgUrl"
-                      class="message-image-preview"
-                      @click="previewImage(imgUrl)"
-                    />
-                  </div>
+              </div>
+              <!-- 正文内容 -->
+              <div v-else class="message-text">
+                <div v-html="formatMessage(msg.displayContent || msg.content)"></div>
+                <!-- 图片预览 -->
+                <div v-if="msg.images && msg.images.length > 0" class="message-images">
+                  <img
+                    v-for="(imgUrl, imgIdx) in msg.images"
+                    :key="imgIdx"
+                    :src="imgUrl"
+                    class="message-image-preview"
+                    @click="previewImage(imgUrl)"
+                  />
                 </div>
               </div>
                 <div class="message-time">{{ formatTime(msg.time) }}</div>
@@ -154,7 +178,7 @@
                 </el-upload>
               </div>
               <div class="action-right">
-                <el-button v-if="!isLoading" type="primary" :disabled="!inputMessage.trim()" @click="sendMessage" class="teacher-btn-primary">
+                <el-button v-if="!isLoading" type="primary" :disabled="!inputMessage.trim()" @click="sendMessage">
                   <el-icon><Promotion /></el-icon>
                   发送
                 </el-button>
@@ -175,17 +199,13 @@
           <span>会话操作</span>
         </div>
         <div class="panel-actions">
-          <el-button class="action-btn" :class="{ 'is-favorited': isFavorited }" @click="collectSession">
+          <el-button class="action-btn collect-btn" :class="{ 'is-favorited': isFavorited }" @click="collectSession">
             <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
             <span>{{ isFavorited ? '已收藏' : '收藏会话' }}</span>
           </el-button>
-          <el-button class="action-btn" @click="exportSession">
+          <el-button class="action-btn export-btn" @click="exportSession">
             <el-icon><Download /></el-icon>
             <span>导出会话</span>
-          </el-button>
-          <el-button class="action-btn" @click="generateTitle">
-            <el-icon><Edit /></el-icon>
-            <span>生成标题</span>
           </el-button>
         </div>
       </div>
@@ -213,8 +233,46 @@ const teacherName = ref(localStorage.getItem('userName') || '教师');
 const searchKeyword = ref('');
 const sessions = ref([]);
 const currentSessionId = ref(null);
-const selectedModel = ref('deepseek');
-const enableWebSearch = ref(false);
+const selectedModel = ref('');
+const enableDeepThink = ref(false);
+
+// 模型列表（从后端动态加载）
+const modelList = ref([])
+const modelsLoading = ref(false)
+
+const loadModels = async () => {
+  modelsLoading.value = true
+  try {
+    const res = await teacherAPI.getAIModels()
+    const models = res?.data?.models || []
+    modelList.value = models
+    if (models.length > 0 && !selectedModel.value) {
+      selectedModel.value = models[0].model_id
+    }
+  } catch (e) {
+    console.error('加载模型列表失败:', e)
+    // 失败时使用默认模型
+    modelList.value = [
+      { model_id: 'doubao-seed-2-0-lite-260215', model_name: 'Doubao-Seed-2.0-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
+      { model_id: 'qwen3-omni-flash', model_name: 'Qwen3-Omni-Flash', provider: 'qwen', description: '全模态模型，Thinker–Talker 架构' }
+    ]
+    if (!selectedModel.value) selectedModel.value = 'doubao-seed-2-0-lite-260215'
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+// 当前选中模型的描述
+const currentModelDesc = computed(() => {
+  const m = modelList.value.find(m => m.model_id === selectedModel.value)
+  return m?.description || ''
+})
+
+// 是否为千问模型
+const isQwenModel = computed(() => {
+  const m = modelList.value.find(m => m.model_id === selectedModel.value)
+  return m?.provider === 'qwen'
+})
 const messages = ref([]);
 const inputMessage = ref('');
 const isLoading = ref(false);
@@ -256,9 +314,15 @@ const previewImage = (url) => {
 
 // 中止控制器
 let abortController = null;
+// SSE 流 reader 引用
+let streamReader = null;
 
 // 停止当前对话
 const stopMessage = () => {
+  if (streamReader) {
+    streamReader.cancel().catch(() => {});
+    streamReader = null;
+  }
   if (abortController) {
     abortController.abort();
     abortController = null;
@@ -367,7 +431,13 @@ const sendMessage = async () => {
 
   // 预先添加空的 assistant 消息
   const assistantMsgIdx = messages.value.length
-  messages.value.push({ role: 'assistant', content: '', time: new Date().toISOString() })
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    thinkContent: '',
+    thinkExpanded: true,
+    time: new Date().toISOString()
+  })
 
   try {
     abortController = new AbortController();
@@ -375,7 +445,8 @@ const sendMessage = async () => {
       session_id: currentSessionId.value || '',
       question_type: 'general',
       messages: historyMessages,
-      model_id: selectedModel.value || 'doubao-seed-1-6-lite-251015'
+      model_id: selectedModel.value || 'doubao-seed-2-0-lite-260215',
+      enable_thinking: enableDeepThink.value
     }, abortController.signal)
 
     if (!response.ok) {
@@ -413,13 +484,55 @@ const sendMessage = async () => {
 
     // 读取 SSE 流
     const reader = response.body.getReader()
+    streamReader = reader
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
+    // think标签状态机
+    let thinkBuf = ''
+    let inThink = false
+
+    const processChunkContent = (raw) => {
+      thinkBuf += raw
+      const msg = messages.value[assistantMsgIdx]
+      while (thinkBuf.length > 0) {
+        if (inThink) {
+          const endIdx = thinkBuf.indexOf('</think>')
+          if (endIdx !== -1) {
+            msg.thinkContent += thinkBuf.slice(0, endIdx)
+            thinkBuf = thinkBuf.slice(endIdx + 8)
+            inThink = false
+          } else {
+            const safe = thinkBuf.length > 7 ? thinkBuf.slice(0, thinkBuf.length - 7) : ''
+            if (safe) { msg.thinkContent += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        } else {
+          const startIdx = thinkBuf.indexOf('<think>')
+          if (startIdx !== -1) {
+            msg.content += thinkBuf.slice(0, startIdx)
+            thinkBuf = thinkBuf.slice(startIdx + 7)
+            inThink = true
+          } else {
+            const safe = thinkBuf.length > 6 ? thinkBuf.slice(0, thinkBuf.length - 6) : ''
+            if (safe) { msg.content += safe; thinkBuf = thinkBuf.slice(safe.length) }
+            break
+          }
+        }
+      }
+    }
 
     let streamDone = false
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        if (thinkBuf) {
+          const msg = messages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
@@ -432,7 +545,7 @@ const sendMessage = async () => {
           try {
             const chunk = JSON.parse(data)
             if (chunk.content) {
-              messages.value[assistantMsgIdx].content += chunk.content
+              processChunkContent(chunk.content)
               await nextTick()
               scrollToBottom()
             }
@@ -441,8 +554,13 @@ const sendMessage = async () => {
         }
       }
 
-      // 流结束后：关闭 reader，立即退出
       if (streamDone) {
+        if (thinkBuf) {
+          const msg = messages.value[assistantMsgIdx]
+          if (inThink) msg.thinkContent += thinkBuf
+          else msg.content += thinkBuf
+          thinkBuf = ''
+        }
         isLoading.value = false
         reader.cancel().catch(() => {})
         break
@@ -453,13 +571,14 @@ const sendMessage = async () => {
       // 用户主动终止
     } else {
       ElMessage.error('发送消息失败：' + (error?.message || error));
-      if (messages.value[assistantMsgIdx]?.content === '') {
+      if (messages.value[assistantMsgIdx]?.content === '' && !messages.value[assistantMsgIdx]?.thinkContent) {
         messages.value.splice(assistantMsgIdx, 1)
       }
     }
   } finally {
     isLoading.value = false;
     abortController = null;
+    streamReader = null;
     // 发送完成后刷新会话列表
     setTimeout(async () => {
       try {
@@ -480,28 +599,31 @@ const sendMessage = async () => {
   }
 };
 
-const quickAction = (type) => {
-  if (type === 'material') {
-    inputMessage.value = '请帮我生成一份教学资料';
-  } else if (type === 'question') {
-    inputMessage.value = '请帮我生成一套测试题';
-  }
-};
-
 const exportSession = () => {
   if (messages.value.length === 0) {
     ElMessage.warning('当前会话为空，无法导出');
     return;
   }
-  ElMessage.success('导出成功');
-};
 
-const generateTitle = () => {
-  if (messages.value.length === 0) {
-    ElMessage.warning('当前会话为空，无法生成标题');
-    return;
-  }
-  ElMessage.success('标题已更新');
+  const title = `会话记录_${new Date().toISOString().split('T')[0]}`;
+  let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${title}</title></head><body>`;
+  htmlContent += `<h1>${title}</h1>`;
+  messages.value.forEach(msg => {
+    const role = msg.role === 'user' ? '用户' : 'AI助教';
+    htmlContent += `<h3>${role}</h3><p>${msg.content.replace(/\n/g, '<br>')}</p><hr>`;
+  });
+  htmlContent += '</body></html>';
+
+  const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title}.doc`;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  ElMessage.success('导出成功');
 };
 
 const scrollToBottom = () => {
@@ -558,6 +680,15 @@ const collectSession = async () => {
 };
 
 onMounted(async () => {
+  // 从 userInfo 中解析教师姓名
+  const info = localStorage.getItem('userInfo')
+  if (info && info !== 'undefined') {
+    try {
+      const parsed = JSON.parse(info)
+      teacherName.value = parsed.name || parsed.teacher_name || teacherName.value
+    } catch {}
+  }
+
   try {
     const res = await teacherAPI.getAISessions(1, 50)
     const list = res?.data?.sessions || []
@@ -569,31 +700,83 @@ onMounted(async () => {
   } catch (e) {
     console.error('加载会话列表失败:', e)
   }
+  loadModels()  // 加载模型列表
 })
 </script>
 
 <style scoped lang="scss">
-@import '@/styles/teacher.css';
-
 .teacher-ai-chat-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f0f4ff 0%, #fafbff 100%);
+  padding: 20px;
+
+  // 顶部栏
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    background: white;
+    padding: 15px 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    :deep(.el-button--primary) {
+      background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
+      border: none;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
+      }
+    }
+  }
+
+  // 聊天容器
   .chat-container {
     display: flex;
     gap: 20px;
     height: calc(100vh - 140px);
 
+    // 左侧边栏
     .sidebar {
       width: 280px;
-      background: var(--teacher-card-bg);
+      background: white;
       border-radius: 12px;
       padding: 20px;
-      box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
       display: flex;
       flex-direction: column;
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      }
 
       .new-session-btn {
         width: 100%;
         margin-bottom: 15px;
         height: 44px;
+        font-size: 16px;
+        font-weight: 600;
+        background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
+        border: none;
+        transition: all 0.3s ease;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
       }
 
       .session-search {
@@ -613,62 +796,115 @@ onMounted(async () => {
           border: 1px solid transparent;
 
           &:hover {
-            background: var(--teacher-bg);
+            background: #f5f7fa;
+            transform: translateX(4px);
           }
 
           &.active {
-            background: rgba(30, 58, 138, 0.1);
-            border-color: var(--teacher-primary);
+            background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
+            border-color: #4F6EF7;
+            box-shadow: 0 2px 8px rgba(79, 110, 247, 0.2);
           }
 
           .session-title {
             font-size: 14px;
             font-weight: 500;
-            color: var(--teacher-text-primary);
+            color: #303133;
             margin-bottom: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
 
           .session-time {
             font-size: 12px;
-            color: var(--teacher-text-secondary);
+            color: #909399;
           }
         }
       }
     }
 
+    // 中间主区域
     .chat-main {
       flex: 1;
-      background: var(--teacher-card-bg);
+      background: white;
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
       display: flex;
       flex-direction: column;
 
+      // 功能栏
       .function-bar {
         display: flex;
-        gap: 25px;
-        padding: 15px 25px;
-        border-bottom: 1px solid var(--teacher-border);
-        background: var(--teacher-bg);
+        align-items: center;
+        gap: 20px;
+        padding: 12px 25px;
+        border-bottom: 1px solid #e4e7ed;
+        background: linear-gradient(to right, #fafbff 0%, #f8f9ff 100%);
+        flex-wrap: wrap;
 
         .function-item {
           display: flex;
           align-items: center;
           gap: 10px;
 
+          &.model-item {
+            flex: 1;
+            min-width: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
           .label {
             font-size: 14px;
-            color: var(--teacher-text-primary);
+            color: #606266;
             font-weight: 500;
+            white-space: nowrap;
+          }
+
+          .qwen-auto-tip {
+            font-size: 12px;
+            color: #909399;
+            font-style: italic;
+          }
+
+          .model-desc-badge {
+            font-size: 12px;
+            color: #4F6EF7;
+            background: rgba(79, 110, 247, 0.08);
+            border: 1px solid rgba(79, 110, 247, 0.2);
+            border-radius: 20px;
+            padding: 2px 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 260px;
+          }
+
+          :deep(.el-select) {
+            .el-input__wrapper {
+              border-radius: 8px;
+              transition: all 0.3s ease;
+
+              &:hover {
+                box-shadow: 0 0 0 1px #4F6EF7;
+              }
+            }
+          }
+
+          :deep(.el-switch) {
+            --el-switch-on-color: #4F6EF7;
           }
         }
       }
 
+      // 消息区域
       .message-area {
         flex: 1;
         overflow-y: auto;
         padding: 25px;
 
+        // 欢迎消息
         .welcome-message {
           text-align: center;
           padding: 80px 20px;
@@ -678,34 +914,38 @@ onMounted(async () => {
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--teacher-primary) 0%, var(--teacher-primary-light) 100%);
+            background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
             align-items: center;
             justify-content: center;
             color: white;
             margin-bottom: 24px;
-            box-shadow: 0 8px 24px rgba(30, 58, 138, 0.3);
+            box-shadow: 0 8px 24px rgba(79, 110, 247, 0.3);
+            animation: float 3s ease-in-out infinite;
           }
 
           h2 {
             margin: 0 0 15px 0;
             font-size: 28px;
             font-weight: 600;
-            color: var(--teacher-text-primary);
+            background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
           }
 
           p {
-            margin: 0 0 24px 0;
+            margin: 0;
             font-size: 16px;
-            color: var(--teacher-text-secondary);
-          }
-
-          .quick-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
+            color: #606266;
           }
         }
 
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+
+        // 消息列表
         .message-list {
           .message-item {
             display: flex;
@@ -719,10 +959,14 @@ onMounted(async () => {
                 align-items: flex-end;
 
                 .message-text {
-                  background: linear-gradient(135deg, var(--teacher-primary) 0%, var(--teacher-primary-light) 100%);
+                  background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
                   color: white;
                 }
               }
+            }
+
+            .message-avatar {
+              flex-shrink: 0;
             }
 
             .message-content {
@@ -731,14 +975,64 @@ onMounted(async () => {
               flex-direction: column;
               gap: 8px;
 
+              // 深度思考区块
+              .think-block {
+                max-width: 80%;
+                margin-bottom: 8px;
+                border: 1px solid rgba(79, 110, 247, 0.25);
+                border-radius: 10px;
+                overflow: hidden;
+                background: rgba(79, 110, 247, 0.04);
+
+                .think-header {
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  padding: 8px 12px;
+                  cursor: pointer;
+                  user-select: none;
+                  background: rgba(79, 110, 247, 0.08);
+                  transition: background 0.2s;
+
+                  &:hover { background: rgba(79, 110, 247, 0.14); }
+
+                  .think-icon { font-size: 14px; }
+                  .think-title { font-size: 13px; font-weight: 600; color: #4F6EF7; flex: 1; }
+                  .think-toggle { font-size: 12px; color: #909399; }
+                }
+
+                .think-content {
+                  padding: 10px 14px;
+                  font-size: 13px;
+                  line-height: 1.7;
+                  color: #606266;
+                  border-top: 1px dashed rgba(79, 110, 247, 0.2);
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                }
+              }
+
               .message-text {
-                background: var(--teacher-bg);
+                background: #f5f7fa;
                 padding: 12px 16px;
                 border-radius: 12px;
                 font-size: 15px;
                 line-height: 1.6;
                 max-width: 80%;
                 word-wrap: break-word;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                transition: all 0.3s ease;
+
+                &:hover {
+                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                }
+
+                :deep(code) {
+                  background: rgba(0, 0, 0, 0.1);
+                  padding: 2px 6px;
+                  border-radius: 4px;
+                  font-family: 'Courier New', monospace;
+                }
 
                 :deep(pre) {
                   background: #1e1e1e;
@@ -772,6 +1066,7 @@ onMounted(async () => {
                   th {
                     background: #f5f7fa;
                     font-weight: 600;
+                    color: #303133;
                   }
 
                   tr:nth-child(even) {
@@ -782,6 +1077,7 @@ onMounted(async () => {
                 :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
                   margin: 16px 0 8px;
                   font-weight: 600;
+                  color: #303133;
                 }
 
                 :deep(h3) { font-size: 16px; }
@@ -803,24 +1099,18 @@ onMounted(async () => {
                 }
 
                 :deep(blockquote) {
-                  border-left: 4px solid var(--teacher-primary);
+                  border-left: 4px solid #4F6EF7;
                   padding: 8px 16px;
                   margin: 10px 0;
-                  background: rgba(30, 58, 138, 0.04);
+                  background: rgba(79, 110, 247, 0.05);
+                  color: #606266;
                 }
 
                 :deep(p) {
                   margin: 6px 0;
                 }
 
-                :deep(code) {
-                  background: rgba(0, 0, 0, 0.08);
-                  padding: 2px 6px;
-                  border-radius: 4px;
-                  font-family: 'Courier New', monospace;
-                  font-size: 13px;
-                }
-
+                // 消息中的图片预览
                 .message-images {
                   display: flex;
                   flex-wrap: wrap;
@@ -835,14 +1125,18 @@ onMounted(async () => {
                     object-fit: cover;
                     border: 1px solid rgba(0, 0, 0, 0.1);
                     transition: all 0.2s ease;
-                    &:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+                    &:hover {
+                      transform: scale(1.02);
+                      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    }
                   }
                 }
               }
 
               .message-time {
                 font-size: 12px;
-                color: var(--teacher-text-secondary);
+                color: #909399;
               }
 
               .loading-dots {
@@ -853,12 +1147,17 @@ onMounted(async () => {
                 span {
                   width: 8px;
                   height: 8px;
-                  background: var(--teacher-primary);
+                  background: #409eff;
                   border-radius: 50%;
                   animation: bounce 1.4s infinite ease-in-out both;
 
-                  &:nth-child(1) { animation-delay: -0.32s; }
-                  &:nth-child(2) { animation-delay: -0.16s; }
+                  &:nth-child(1) {
+                    animation-delay: -0.32s;
+                  }
+
+                  &:nth-child(2) {
+                    animation-delay: -0.16s;
+                  }
                 }
               }
             }
@@ -866,15 +1165,23 @@ onMounted(async () => {
         }
       }
 
+      // 输入区域
       .input-area {
-        border-top: 1px solid var(--teacher-border);
+        border-top: 1px solid #e4e7ed;
         padding: 20px 25px;
-        background: var(--teacher-bg);
+        background: linear-gradient(to top, #fafbff 0%, white 100%);
 
         .input-wrapper {
           :deep(.el-textarea__inner) {
             border-radius: 10px;
             font-size: 15px;
+            border: 2px solid #e4e7ed;
+            transition: all 0.3s ease;
+
+            &:focus {
+              border-color: #4F6EF7;
+              box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
+            }
           }
 
           // 待发送图片预览区
@@ -888,8 +1195,8 @@ onMounted(async () => {
               display: flex;
               align-items: center;
               gap: 6px;
-              background: rgba(30, 58, 138, 0.06);
-              border: 1px solid rgba(30, 58, 138, 0.2);
+              background: #f0f4ff;
+              border: 1px solid rgba(79, 110, 247, 0.3);
               border-radius: 8px;
               padding: 4px 8px 4px 4px;
 
@@ -914,7 +1221,10 @@ onMounted(async () => {
                 color: #909399;
                 font-size: 14px;
                 flex-shrink: 0;
-                &:hover { color: #f56c6c; }
+
+                &:hover {
+                  color: #f56c6c;
+                }
               }
             }
           }
@@ -927,17 +1237,50 @@ onMounted(async () => {
 
             .action-left { display: flex; align-items: center; }
             .action-right { display: flex; align-items: center; }
+
+            :deep(.el-button--primary) {
+              background: linear-gradient(135deg, #4F6EF7 0%, #60A5FA 100%);
+              border: none;
+              height: 40px;
+              padding: 0 24px;
+              font-weight: 500;
+              transition: all 0.3s ease;
+
+              &:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(79, 110, 247, 0.4);
+              }
+
+              &:active {
+                transform: translateY(0);
+              }
+            }
+
+            :deep(.el-button--text) {
+              color: #4F6EF7;
+              transition: all 0.3s ease;
+
+              &:hover {
+                background: rgba(79, 110, 247, 0.1);
+              }
+            }
           }
         }
       }
     }
 
+    // 右侧面板
     .right-panel {
       width: 220px;
-      background: var(--teacher-card-bg);
+      background: white;
       border-radius: 12px;
       padding: 20px;
-      box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      }
 
       .panel-title {
         display: flex;
@@ -945,10 +1288,14 @@ onMounted(async () => {
         gap: 8px;
         font-size: 16px;
         font-weight: 600;
-        color: var(--teacher-text-primary);
+        color: #303133;
         margin-bottom: 20px;
         padding-bottom: 12px;
-        border-bottom: 2px solid var(--teacher-border);
+        border-bottom: 2px solid #f0f0f0;
+
+        .el-icon {
+          color: #4F6EF7;
+        }
       }
 
       .panel-actions {
@@ -963,11 +1310,66 @@ onMounted(async () => {
           align-items: center;
           justify-content: center;
           gap: 8px;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          border: none;
+          box-sizing: border-box;
 
-          &.is-favorited {
-            background: linear-gradient(135deg, #ffd666 0%, #ffa940 100%);
-            color: #873800;
-            border: none;
+          .el-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+          }
+
+          span {
+            flex-shrink: 0;
+          }
+
+          &:hover {
+            transform: translateX(4px);
+          }
+
+          &:active {
+            transform: translateX(2px);
+          }
+
+          // 收藏按钮 - 金色主题
+          &.collect-btn {
+            background: linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%);
+            color: #d48806;
+
+            &:hover {
+              background: linear-gradient(135deg, #ffe7ba 0%, #ffd666 100%);
+              box-shadow: 0 4px 12px rgba(255, 214, 102, 0.4);
+            }
+
+            &.is-favorited {
+              background: linear-gradient(135deg, #ffd666 0%, #ffa940 100%);
+              color: #873800;
+            }
+          }
+
+          // 导出按钮 - 蓝色主题
+          &.export-btn {
+            background: linear-gradient(135deg, #f0f9ff 0%, #d1f0ff 100%);
+            color: #0958d9;
+
+            &:hover {
+              background: linear-gradient(135deg, #d1f0ff 0%, #91d5ff 100%);
+              box-shadow: 0 4px 12px rgba(145, 213, 255, 0.4);
+            }
+          }
+
+          // 标题按钮 - 紫色主题
+          &.title-btn {
+            background: linear-gradient(135deg, #f0e6ff 0%, #d9c3ff 100%);
+            color: #531dab;
+
+            &:hover {
+              background: linear-gradient(135deg, #d9c3ff 0%, #b37feb 100%);
+              box-shadow: 0 4px 12px rgba(179, 127, 235, 0.4);
+            }
           }
         }
       }
@@ -975,8 +1377,119 @@ onMounted(async () => {
   }
 }
 
+// 动画
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+// fade 过渡
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+// 模型选项下拉样式（全局，popper在body下）
+:global(.model-select-popper .el-select-dropdown__item) {
+  height: auto !important;
+  padding: 8px 12px !important;
+}
+
+:global(.model-option-item) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+:global(.model-option-header) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:global(.model-option-name) {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+
+:global(.model-option-provider) {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+
+  &.doubao {
+    background: rgba(255, 107, 53, 0.1);
+    color: #e05a2b;
+  }
+
+  &.qwen {
+    background: rgba(79, 110, 247, 0.1);
+    color: #4F6EF7;
+  }
+}
+
+:global(.model-option-desc) {
+  font-size: 11px;
+  color: #909399;
+  line-height: 1.4;
+}
+
+// 响应式
+@media (max-width: 1200px) {
+  .chat-container {
+    .sidebar {
+      width: 240px;
+    }
+
+    .right-panel {
+      width: 200px;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-container {
+    flex-direction: column;
+
+    .sidebar,
+    .right-panel {
+      width: 100%;
+      height: auto;
+    }
+  }
+}
+
+// 滚动条美化
+.message-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4F6EF7 0%, #60A5FA 100%);
+  border-radius: 3px;
+}
+
+.message-area::-webkit-scrollbar-track {
+  background: #f5f7fa;
+  border-radius: 3px;
+}
+
+.session-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.session-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4F6EF7 0%, #60A5FA 100%);
+  border-radius: 3px;
+}
+
+.session-list::-webkit-scrollbar-track {
+  background: #f5f7fa;
+  border-radius: 3px;
 }
 </style>

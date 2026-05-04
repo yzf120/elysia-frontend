@@ -38,9 +38,9 @@
               :on-success="handleUploadSuccess"
               :on-error="handleUploadError"
               :before-upload="beforeUpload"
-              :file-list="fileList"
+              v-model:file-list="fileList"
               multiple
-              accept=".pdf,.doc,.docx,.txt"
+              accept=".pdf,.doc,.docx,.txt,.md,.csv,.html,.htm"
             >
               <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
               <div class="el-upload__text">
@@ -48,7 +48,7 @@
               </div>
               <template #tip>
                 <div class="el-upload__tip">
-                  支持 PDF、Word、TXT 格式，单个文件不超过 50MB
+                  支持 PDF、Word、TXT、Markdown、CSV、HTML 格式，单个文件不超过 50MB
                 </div>
               </template>
             </el-upload>
@@ -57,7 +57,7 @@
               <el-button
                 type="primary"
                 :loading="importing"
-                :disabled="fileList.length === 0"
+                :disabled="uploadedFiles.length === 0"
                 @click="handleImport"
               >
                 <el-icon><Upload /></el-icon>
@@ -141,10 +141,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import AdminSidebar from '@/components/admin/AdminSidebar.vue';
+import { knowledgeApi } from '@/services/index.js';
 
 const router = useRouter();
 const activeMenu = computed(() => router.currentRoute.value.path);
@@ -153,44 +154,40 @@ const importing = ref(false);
 
 const uploadRef = ref(null);
 const fileList = ref([]);
+const uploadedFiles = ref([]); // 已上传的文件信息（含临时路径）
 const uploadAction = ref('http://localhost:8001/api/admin/knowledge/upload');
 const uploadHeaders = computed(() => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`
 }));
 
 const searchKeyword = ref('');
-const documents = ref([
-  {
-    id: 1,
-    fileName: '计算机网络教程.pdf',
-    fileSize: '12.5 MB',
-    importTime: '2026-02-07 10:30:00',
-    status: '已处理'
-  },
-  {
-    id: 2,
-    fileName: '数据结构与算法.docx',
-    fileSize: '8.3 MB',
-    importTime: '2026-02-06 15:20:00',
-    status: '已处理'
-  }
-]);
+const documents = ref([]);
 const selectedDocs = ref([]);
 const docPage = ref(1);
 const docPageSize = ref(10);
-const docTotal = ref(2);
+const docTotal = ref(0);
+
+onMounted(() => {
+  loadDocuments();
+});
 
 const beforeUpload = (file) => {
-  const isValidType = [
+  const validTypes = [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain'
-  ].includes(file.type);
+    'text/plain',
+    'text/markdown',
+    'text/csv',
+    'text/html',
+  ];
+  const validExts = ['.pdf', '.doc', '.docx', '.txt', '.md', '.csv', '.html', '.htm'];
+  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+  const isValidType = validTypes.includes(file.type) || validExts.includes(ext);
   const isLt50M = file.size / 1024 / 1024 < 50;
 
   if (!isValidType) {
-    ElMessage.error('只支持 PDF、Word、TXT 格式的文件！');
+    ElMessage.error('只支持 PDF、Word、TXT、Markdown、CSV、HTML 格式的文件！');
     return false;
   }
   if (!isLt50M) {
@@ -201,7 +198,18 @@ const beforeUpload = (file) => {
 };
 
 const handleUploadSuccess = (response, file) => {
-  ElMessage.success(`${file.name} 上传成功`);
+  if (response && response.data) {
+    // 保存上传后的文件信息（含临时路径）
+    uploadedFiles.value.push({
+      file_name: response.data.file_name,
+      file_size: response.data.file_size,
+      file_path: response.data.file_path,
+      file_type: response.data.file_type,
+    });
+    ElMessage.success(`${file.name} 上传成功`);
+  } else {
+    ElMessage.error(`${file.name} 上传失败`);
+  }
 };
 
 const handleUploadError = (error, file) => {
@@ -209,20 +217,61 @@ const handleUploadError = (error, file) => {
 };
 
 const handleImport = async () => {
-  if (fileList.value.length === 0) {
+  if (uploadedFiles.value.length === 0) {
     ElMessage.warning('请先上传文件');
     return;
   }
 
   importing.value = true;
   try {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    ElMessage.success('导入成功！');
+    let successCount = 0;
+    let failCount = 0;
+    let maxEstimatedSeconds = 0;
+
+    for (const fileInfo of uploadedFiles.value) {
+      try {
+        const res = await knowledgeApi.importDocument({
+          file_path: fileInfo.file_path,
+          file_name: fileInfo.file_name,
+          file_size: fileInfo.file_size,
+          file_type: fileInfo.file_type,
+          tags: '',
+        });
+        // res 经过 axios 拦截器后是 { data: {...}, error: {code: 0} }
+        if (res && res.data) {
+          successCount++;
+          // 记录最大预估时间
+          const estimated = res.data.estimated_seconds || 5;
+          if (estimated > maxEstimatedSeconds) {
+            maxEstimatedSeconds = estimated;
+          }
+        } else {
+          failCount++;
+        }
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      const timeText = maxEstimatedSeconds > 10
+        ? `约 ${Math.ceil(maxEstimatedSeconds / 10) * 10} 秒`
+        : `约 ${maxEstimatedSeconds} 秒`;
+      ElMessage.success({
+        message: `成功提交 ${successCount} 个文件，正在后台构建索引，预计${timeText}后生效${failCount > 0 ? `，${failCount} 个失败` : ''}`,
+        duration: 5000,
+      });
+    } else {
+      ElMessage.error('导入失败');
+    }
+
+    // 清理
     fileList.value = [];
+    uploadedFiles.value = [];
     uploadRef.value?.clearFiles();
     loadDocuments();
   } catch (error) {
-    ElMessage.error(`导入失败：${error}`);
+    ElMessage.error(`导入失败：${error.message || error}`);
   } finally {
     importing.value = false;
   }
@@ -231,12 +280,39 @@ const handleImport = async () => {
 const loadDocuments = async () => {
   loading.value = true;
   try {
-    await new Promise(resolve => setTimeout(resolve, 400));
+    const res = await knowledgeApi.listDocuments({
+      page: docPage.value,
+      page_size: docPageSize.value,
+      keyword: searchKeyword.value,
+    });
+    // axios拦截器取了response.data，res = { data: { total, items, page }, error: {code:0} }
+    if (res && res.data) {
+      const items = res.data.items || [];
+      documents.value = items.map(item => ({
+        id: item.id,
+        doc_id: item.id,
+        fileName: item.file_name || item.content || item.id,
+        fileSize: formatFileSize(item.file_size || 0),
+        importTime: item.create_time || '-',
+        status: item.status === 2 ? '已处理' : item.status === 1 ? '处理中' : item.status === 3 ? '处理失败' : '待处理',
+        sourceType: item.source_type,
+        tags: item.tags,
+      }));
+      docTotal.value = res.data.total || 0;
+    }
   } catch (error) {
-    ElMessage.error(`加载失败：${error}`);
+    ElMessage.error(`加载失败：${error.message || error}`);
   } finally {
     loading.value = false;
   }
+};
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
 const handleSelectionChange = (selection) => {
@@ -253,19 +329,36 @@ const handleDelete = (row) => {
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
-    ElMessage.success('删除成功');
-    loadDocuments();
+    try {
+      await knowledgeApi.deleteDocument({ doc_id: row.id });
+      ElMessage.success({
+        message: '文档已删除，索引清理在后台进行',
+        duration: 3000,
+      });
+      loadDocuments();
+    } catch (error) {
+      ElMessage.error(`删除失败：${error.message || error}`);
+    }
   });
 };
 
 const handleBatchDelete = () => {
-  ElMessageBox.confirm(`确定要删除选中的 ${selectedDocs.value.length} 个文档吗？`, '确认删除', {
+    const ids = selectedDocs.value.map(doc => doc.id);
+  ElMessageBox.confirm(`确定要删除选中的 ${ids.length} 个文档吗？`, '确认删除', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
-    ElMessage.success('删除成功');
-    loadDocuments();
+    try {
+      await knowledgeApi.deleteDocument({ ids: ids });
+      ElMessage.success({
+        message: `成功删除 ${ids.length} 个文档，索引清理在后台进行`,
+        duration: 3000,
+      });
+      loadDocuments();
+    } catch (error) {
+      ElMessage.error(`删除失败：${error.message || error}`);
+    }
   });
 };
 </script>

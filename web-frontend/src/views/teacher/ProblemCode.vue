@@ -1921,10 +1921,10 @@ const loadAIModels = async () => {
     console.error('加载模型列表失败:', e)
     // 失败时使用默认模型
     aiModels.value = [
-      { model_id: 'doubao-seed-1-6-lite-251015', model_name: 'Doubao-Seed-1.6-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
+      { model_id: 'doubao-seed-2-0-lite-260215', model_name: 'Doubao-Seed-2.0-lite', provider: 'doubao', description: '多模态模型，支持深度思考' },
       { model_id: 'qwen3-omni-flash', model_name: 'Qwen3-Omni-Flash', provider: 'qwen', description: '全模态模型，Thinker–Talker 架构' }
     ]
-    if (!aiSelectedModel.value) aiSelectedModel.value = 'doubao-seed-1-6-lite-251015'
+    if (!aiSelectedModel.value) aiSelectedModel.value = 'doubao-seed-2-0-lite-260215'
   } finally {
     aiModelsLoading.value = false
   }
@@ -2083,7 +2083,7 @@ const sendAIMessage = async () => {
       question_type: 'algorithm_problem',
       problem_info: buildProblemInfo(),
       messages: historyMessages,
-      model_id: aiSelectedModel.value || 'doubao-seed-1-6-lite-251015',
+      model_id: aiSelectedModel.value || 'doubao-seed-2-0-lite-260215',
       enable_thinking: aiDeepThink.value,
       user_code: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).code : (aiIncludeCode.value ? (code.value || '') : ''),
       user_code_lang: (aiPendingRecord.value || aiSessionRecord.value) ? (aiPendingRecord.value || aiSessionRecord.value).langValue : (aiIncludeCode.value ? (selectedLang.value || '') : ''),

@@ -265,6 +265,9 @@ export const teacherAPI = {
   getAISessionMessages: (sessionId, page = 1, pageSize = 200) =>
     api.get(`/student/ai/sessions/${sessionId}/messages`, { params: { page, page_size: pageSize } }),
 
+  // 查询支持的AI模型列表
+  getAIModels: () => api.get('/student/ai/models'),
+
   // 收藏会话
   favoriteSession: (sessionId) =>
     api.post('/ai/favorite', { session_id: sessionId }),
