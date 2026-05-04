@@ -579,6 +579,13 @@ import {
 } from '@element-plus/icons-vue'
 import { studentAPI } from '@/services/index.js'
 import MonacoEditor from '@/components/MonacoEditor.vue'
+import { marked } from 'marked'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -1421,16 +1428,10 @@ function nowTimeStr() {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// 格式化AI消息（支持代码块、换行）
+// 格式化AI消息（支持完整Markdown渲染）
 const formatAIMessage = (content) => {
   if (!content) return ''
-  let html = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="ai-code-block"><code>${escapeHtml(code.trim())}</code></pre>`
-  })
-  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>')
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\n/g, '<br>')
-  return html
+  return marked.parse(content)
 }
 
 // 滚动到底部
@@ -2991,7 +2992,7 @@ onMounted(async () => {
       font-size: 14px;
       line-height: 1.7;
       word-break: break-word;
-      :deep(.ai-code-block) {
+      :deep(pre) {
         background: #1e1e2e;
         color: #cdd6f4;
         border-radius: 8px;
@@ -3001,8 +3002,13 @@ onMounted(async () => {
         font-family: 'Courier New', monospace;
         font-size: 13px;
         line-height: 1.5;
+        code {
+          background: transparent;
+          padding: 0;
+          color: inherit;
+        }
       }
-      :deep(.ai-inline-code) {
+      :deep(code) {
         background: rgba(79, 110, 247, 0.12);
         color: #4F6EF7;
         padding: 1px 5px;
@@ -3010,6 +3016,47 @@ onMounted(async () => {
         font-family: 'Courier New', monospace;
         font-size: 13px;
       }
+      :deep(table) {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+        font-size: 13px;
+        th, td {
+          border: 1px solid #dcdfe6;
+          padding: 6px 10px;
+          text-align: left;
+        }
+        th {
+          background: #f5f7fa;
+          font-weight: 600;
+        }
+        tr:nth-child(even) {
+          background: #fafafa;
+        }
+      }
+      :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
+        margin: 12px 0 6px;
+        font-weight: 600;
+      }
+      :deep(h3) { font-size: 15px; }
+      :deep(h4) { font-size: 14px; }
+      :deep(ul), :deep(ol) {
+        padding-left: 20px;
+        margin: 6px 0;
+      }
+      :deep(li) { margin: 3px 0; }
+      :deep(hr) {
+        border: none;
+        border-top: 1px solid #e4e7ed;
+        margin: 10px 0;
+      }
+      :deep(blockquote) {
+        border-left: 3px solid #4F6EF7;
+        padding: 6px 12px;
+        margin: 8px 0;
+        background: rgba(79, 110, 247, 0.05);
+      }
+      :deep(p) { margin: 4px 0; }
     }
 
     .ai-msg-image {

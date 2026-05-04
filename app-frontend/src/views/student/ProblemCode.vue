@@ -428,6 +428,13 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { studentAPI } from '../../api/index.js'
+import { marked } from 'marked'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -1521,13 +1528,7 @@ function nowTimeStr() {
 
 const formatAIMessage = (content) => {
   if (!content) return ''
-  let html = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="ai-code-block"><code>${escapeHtml(code.trim())}</code></pre>`
-  })
-  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>')
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\n/g, '<br>')
-  return html
+  return marked.parse(content)
 }
 
 const scrollAIToBottom = () => {
@@ -2766,7 +2767,7 @@ onMounted(async () => {
       word-break: break-word;
     }
 
-    .ai-code-block {
+    .ai-msg-text :deep(pre) {
       background: #1e1e2e;
       color: #cdd6f4;
       border-radius: 6px;
@@ -2778,7 +2779,13 @@ onMounted(async () => {
       line-height: 1.5;
     }
 
-    .ai-inline-code {
+    .ai-msg-text :deep(pre code) {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    .ai-msg-text :deep(code) {
       background: rgba(79, 110, 247, 0.12);
       color: #4F6EF7;
       padding: 1px 4px;
@@ -2786,6 +2793,59 @@ onMounted(async () => {
       font-family: 'Courier New', monospace;
       font-size: 12px;
     }
+
+    .ai-msg-text :deep(table) {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 6px 0;
+      font-size: 12px;
+    }
+
+    .ai-msg-text :deep(table th),
+    .ai-msg-text :deep(table td) {
+      border: 1px solid #dcdfe6;
+      padding: 5px 8px;
+      text-align: left;
+    }
+
+    .ai-msg-text :deep(table th) {
+      background: #f5f7fa;
+      font-weight: 600;
+    }
+
+    .ai-msg-text :deep(h1),
+    .ai-msg-text :deep(h2),
+    .ai-msg-text :deep(h3),
+    .ai-msg-text :deep(h4) {
+      margin: 10px 0 5px;
+      font-weight: 600;
+    }
+
+    .ai-msg-text :deep(h3) { font-size: 14px; }
+    .ai-msg-text :deep(h4) { font-size: 13px; }
+
+    .ai-msg-text :deep(ul),
+    .ai-msg-text :deep(ol) {
+      padding-left: 18px;
+      margin: 5px 0;
+    }
+
+    .ai-msg-text :deep(li) { margin: 2px 0; }
+
+    .ai-msg-text :deep(hr) {
+      border: none;
+      border-top: 1px solid #e4e7ed;
+      margin: 8px 0;
+    }
+
+    .ai-msg-text :deep(blockquote) {
+      border-left: 3px solid #4F6EF7;
+      padding: 5px 10px;
+      margin: 6px 0;
+      background: rgba(79, 110, 247, 0.05);
+    }
+
+    .ai-msg-text :deep(p) { margin: 3px 0; }
 
     .ai-msg-image {
       max-width: 100%;

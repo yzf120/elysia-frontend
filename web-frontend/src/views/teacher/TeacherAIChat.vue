@@ -199,6 +199,13 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { VideoPause, Paperclip, Close, Star, StarFilled } from '@element-plus/icons-vue';
 import { teacherAPI } from '@/services/index.js';
+import { marked } from 'marked';
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true
+});
 
 const router = useRouter();
 
@@ -283,7 +290,8 @@ const formatTime = (time) => {
 };
 
 const formatMessage = (content) => {
-  return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+  if (!content) return '';
+  return marked.parse(content);
 };
 
 const createNewSession = () => {
@@ -730,6 +738,88 @@ onMounted(async () => {
                 font-size: 15px;
                 line-height: 1.6;
                 max-width: 80%;
+                word-wrap: break-word;
+
+                :deep(pre) {
+                  background: #1e1e1e;
+                  color: #d4d4d4;
+                  padding: 14px 18px;
+                  border-radius: 8px;
+                  overflow-x: auto;
+                  margin: 10px 0;
+                  font-size: 13px;
+                  line-height: 1.5;
+
+                  code {
+                    background: transparent;
+                    padding: 0;
+                    color: inherit;
+                  }
+                }
+
+                :deep(table) {
+                  border-collapse: collapse;
+                  width: 100%;
+                  margin: 10px 0;
+                  font-size: 14px;
+
+                  th, td {
+                    border: 1px solid #dcdfe6;
+                    padding: 8px 12px;
+                    text-align: left;
+                  }
+
+                  th {
+                    background: #f5f7fa;
+                    font-weight: 600;
+                  }
+
+                  tr:nth-child(even) {
+                    background: #fafafa;
+                  }
+                }
+
+                :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
+                  margin: 16px 0 8px;
+                  font-weight: 600;
+                }
+
+                :deep(h3) { font-size: 16px; }
+                :deep(h4) { font-size: 15px; }
+
+                :deep(ul), :deep(ol) {
+                  padding-left: 20px;
+                  margin: 8px 0;
+                }
+
+                :deep(li) {
+                  margin: 4px 0;
+                }
+
+                :deep(hr) {
+                  border: none;
+                  border-top: 1px solid #e4e7ed;
+                  margin: 12px 0;
+                }
+
+                :deep(blockquote) {
+                  border-left: 4px solid var(--teacher-primary);
+                  padding: 8px 16px;
+                  margin: 10px 0;
+                  background: rgba(30, 58, 138, 0.04);
+                }
+
+                :deep(p) {
+                  margin: 6px 0;
+                }
+
+                :deep(code) {
+                  background: rgba(0, 0, 0, 0.08);
+                  padding: 2px 6px;
+                  border-radius: 4px;
+                  font-family: 'Courier New', monospace;
+                  font-size: 13px;
+                }
 
                 .message-images {
                   display: flex;

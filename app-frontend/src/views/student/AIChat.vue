@@ -325,6 +325,13 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showDialog } from 'vant'
 import { studentAPI } from '../../api/index.js'
+import { marked } from 'marked'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -451,13 +458,10 @@ const formatTime = (time) => {
   return `${date.getMonth() + 1}-${date.getDate()}`
 }
 
-// 格式化消息内容（支持Markdown）
+// 格式化消息内容（支持完整Markdown渲染）
 const formatMessage = (content) => {
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br>')
+  if (!content) return ''
+  return marked.parse(content)
 }
 
 // 创建新会话
@@ -1368,6 +1372,86 @@ onMounted(() => {
 
 .message-item.user .message-text :deep(code) {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.message-text :deep(pre) {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.message-text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.message-text :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.message-text :deep(table th),
+.message-text :deep(table td) {
+  border: 1px solid #dcdfe6;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.message-text :deep(table th) {
+  background: #f5f7fa;
+  font-weight: 600;
+}
+
+.message-text :deep(table tr:nth-child(even)) {
+  background: #fafafa;
+}
+
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.message-text :deep(h3) { font-size: 15px; }
+.message-text :deep(h4) { font-size: 14px; }
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.message-text :deep(li) {
+  margin: 3px 0;
+}
+
+.message-text :deep(hr) {
+  border: none;
+  border-top: 1px solid #e4e7ed;
+  margin: 10px 0;
+}
+
+.message-text :deep(blockquote) {
+  border-left: 3px solid #4F6EF7;
+  padding: 6px 12px;
+  margin: 8px 0;
+  background: rgba(79, 110, 247, 0.05);
+  color: #606266;
+}
+
+.message-text :deep(p) {
+  margin: 4px 0;
 }
 
 .message-time {

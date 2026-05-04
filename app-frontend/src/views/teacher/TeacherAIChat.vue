@@ -133,6 +133,13 @@
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { showToast } from 'vant'
 import { teacherAPI } from '../../api/index.js'
+import { marked } from 'marked'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
 
 const teacherName = ref(localStorage.getItem('userName') || '教师')
 const messages = ref([])
@@ -250,9 +257,8 @@ const formatTime = (time) => {
 }
 
 const formatMessage = (content) => {
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>')
+  if (!content) return ''
+  return marked.parse(content)
 }
 
 const scrollToBottom = async () => {
@@ -553,6 +559,88 @@ const collectSession = async () => {
   line-height: 1.6;
   color: #333;
   word-break: break-word;
+}
+
+.msg-text :deep(pre) {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.msg-text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.msg-text :deep(code) {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.msg-text :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.msg-text :deep(table th),
+.msg-text :deep(table td) {
+  border: 1px solid #dcdfe6;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.msg-text :deep(table th) {
+  background: #f5f7fa;
+  font-weight: 600;
+}
+
+.msg-text :deep(h1),
+.msg-text :deep(h2),
+.msg-text :deep(h3),
+.msg-text :deep(h4) {
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+
+.msg-text :deep(h3) { font-size: 15px; }
+.msg-text :deep(h4) { font-size: 14px; }
+
+.msg-text :deep(ul),
+.msg-text :deep(ol) {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.msg-text :deep(li) {
+  margin: 3px 0;
+}
+
+.msg-text :deep(hr) {
+  border: none;
+  border-top: 1px solid #e4e7ed;
+  margin: 10px 0;
+}
+
+.msg-text :deep(blockquote) {
+  border-left: 3px solid #4F6EF7;
+  padding: 6px 12px;
+  margin: 8px 0;
+  background: rgba(79, 110, 247, 0.05);
+}
+
+.msg-text :deep(p) {
+  margin: 4px 0;
 }
 
 .message-item.user .msg-text {
